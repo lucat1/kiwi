@@ -1,14 +1,18 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include <X11/Xlib.h>
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MOD Mod4Mask
+#define MAXLEN 256
+#define AUTOSTART "kiwi/autostart"
 
 #define die(...)                                                               \
   _m("FAIL", __FILE__, __LINE__, __VA_ARGS__), cleanup(), exit(1);
+#define warn(...) _m("WARN", __FILE__, __LINE__, __VA_ARGS__)
 #define msg(...) _m("OK", __FILE__, __LINE__, __VA_ARGS__)
 
 static void _m(const char *t, const char *f, const int l, const char *fmt,
@@ -38,6 +42,7 @@ typedef struct {
   workspace *ws;
 } state;
 
+char cfgp[MAXLEN]; // path to config file
 static state *wm;
 
 static int xerror() { return 0; }
@@ -51,6 +56,29 @@ static void cleanup() {
     free(wm->ws);
 
   free(wm);
+}
+
+static void find_autostart() {
+  char *xdg_home = getenv("XDG_CONFIG_HOME");
+  if (xdg_home != NULL) {
+    snprintf(cfgp, MAXLEN, "%s/%s", xdg_home, AUTOSTART);
+  } else {
+    char *home = getenv("HOME");
+    if (home == NULL) {
+      warn("$XDG_CONFIG_HOME and $HOME not found autostart will not be loaded");
+      return;
+    }
+
+    snprintf(cfgp, MAXLEN, "%s/%s/%s", home, ".config", AUTOSTART);
+  }
+}
+
+static void run_autostart() {
+  if (fork() == 0) {
+    setsid();
+    execl("/bin/sh", "/bin/sh", cfgp, NULL);
+    msg("Executed: %s", cfgp);
+  }
 }
 
 static void ws_sel(int i) { wm->curr = i; }
@@ -125,9 +153,11 @@ int main(void) {
   wm->s = DefaultScreen(wm->d);
   wm->r = RootWindow(wm->d, wm->s);
 
+  find_autostart();
+  run_autostart();
+
   // instantiate at least one workspace
   ws_add();
-
   grab_mouse();
 
   start.subwindow = None;
