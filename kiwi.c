@@ -65,9 +65,9 @@ static workspace *ws_add() {
   // expand the ws array in wm and add the new workspace to it
   // NOTE: we wanna check if the array has been initialized first tough
   //  as this might be the first workspace we add
-  if (wm->ws == NULL && (wm->ws = calloc(0, sizeof(workspace *))) == NULL) {
+  if (wm->ws == NULL && (wm->ws = calloc(0, sizeof(workspace))) == NULL) {
     die("Cannot initialize the workspaces array");
-  } else if ((wm->ws = realloc(wm->ws, (sizeof(workspace *)) * wm->wscnt)) ==
+  } else if ((wm->ws = realloc(wm->ws, (sizeof(workspace)) * wm->wscnt)) ==
              NULL) {
     die("Cannot increase array of workspaces");
   }
@@ -114,7 +114,7 @@ int main(void) {
   XEvent ev;
   Window foc;
 
-  if ((wm = calloc(0, sizeof wm)) == NULL)
+  if ((wm = calloc(0, sizeof(wm))) == NULL)
     die("Could not allocate memory for the wm struct");
 
   // Exit if display doesn't instantiate
