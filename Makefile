@@ -5,10 +5,9 @@ PREFIX ?= /usr
 BINDIR ?= $(PREFIX)/bin
 CC     ?= gcc
 
-SRC=kiwi.c
-
 all:
-	$(CC) $(CFLAGS) -o kiwi $(SRC) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o kiwi  kiwi.c  $(LDFLAGS)
+	$(CC) $(CFLAGS) -o kiwic kiwic.c $(LDFLAGS)
 
 test: all
 	DISPLAY=:1 ./kiwi

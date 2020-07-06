@@ -29,8 +29,14 @@ static void _m(const char *t, const char *f, const int l, const char *fmt,
 }
 
 typedef struct {
-  int i;
-  Window *windows;
+  Window w;
+  int ws; // the workspace id
+  int x, y, width, height, border;
+} client;
+
+typedef struct {
+  int i;       // the index of the workspace
+  client *foc; // the focused client(window)
 } workspace;
 
 typedef struct {
@@ -42,8 +48,24 @@ typedef struct {
   workspace *ws;
 } state;
 
-char cfgp[MAXLEN]; // path to config file
-static state *wm;
+typedef struct {
+  int x, y;
+  int width, height;
+  int border;
+} geometry;
+
+static void handle_map_request(XEvent *ev);
+static void handle_button_press(XEvent *ev);
+
+static void handle_new_window(Window w, XWindowAttributes *wa);
+
+char cfgp[MAXLEN];       // path to config file
+static state *wm;        // wm global state
+static client **clients; // list of available clients (wrapper around windows)
+static void (*events[LASTEvent])(XEvent *e) = {
+    [MapRequest] = handle_map_request,
+    [ButtonPress] = handle_button_press,
+};
 
 static int xerror() { return 0; }
 
@@ -58,7 +80,7 @@ static void cleanup() {
   free(wm);
 }
 
-static void find_autostart() {
+static int find_autostart() {
   char *xdg_home = getenv("XDG_CONFIG_HOME");
   if (xdg_home != NULL) {
     snprintf(cfgp, MAXLEN, "%s/%s", xdg_home, AUTOSTART);
@@ -66,11 +88,13 @@ static void find_autostart() {
     char *home = getenv("HOME");
     if (home == NULL) {
       warn("$XDG_CONFIG_HOME and $HOME not found autostart will not be loaded");
-      return;
+      return 0;
     }
 
     snprintf(cfgp, MAXLEN, "%s/%s/%s", home, ".config", AUTOSTART);
   }
+
+  return 1;
 }
 
 static void run_autostart() {
@@ -81,7 +105,33 @@ static void run_autostart() {
   }
 }
 
+static void client_add(client *c) {
+  if (clients == NULL && (clients = calloc(0, sizeof(client **))) == NULL) {
+    die("Cannot initialize the clients array");
+  } else {
+    /* size_t s = sizeof(client *) * (sizeof(clients) / sizeof(client *) + 1);
+     */
+    size_t s = sizeof(client **) + sizeof(clients);
+    if ((clients = realloc(clients, s)) == NULL)
+      die("Cannot increase array of clients");
+  }
+
+  int i = sizeof(clients) / sizeof(client **);
+  clients[i] = c;
+}
+
+static client *client_from_window(Window w) {
+  int i, len = sizeof(clients) / sizeof(client **);
+  for (i = 0; i < len; i++) {
+    if (clients[i]->w == w)
+      return clients[i];
+  }
+
+  return NULL;
+}
+
 static void ws_sel(int i) { wm->curr = i; }
+static workspace ws_curr() { return wm->ws[wm->curr]; }
 
 static workspace *ws_add() {
   workspace *ws;
@@ -102,6 +152,69 @@ static workspace *ws_add() {
 
   wm->ws[ws->i] = *ws;
   return ws;
+}
+
+static void ws_curr_focus(client *c) {
+  workspace ws;
+
+  ws = ws_curr();
+  ws.foc = c;
+
+  // TODO: xorg focus
+}
+
+static void handle_map_request(XEvent *ev) {
+  static XWindowAttributes wa;
+  XMapRequestEvent *e = &ev->xmaprequest;
+
+  msg("Handling map request event");
+  if (!XGetWindowAttributes(wm->d, e->window, &wa))
+    return;
+
+  if (wa.override_redirect)
+    return;
+
+  handle_new_window(e->window, &wa);
+}
+
+static void handle_new_window(Window w, XWindowAttributes *wa) {
+  client *c;
+
+  if (client_from_window(w) != NULL) {
+    warn("Trying to rehandle as a new window: %d", w);
+    return;
+  }
+
+  c = malloc(sizeof(client));
+  if (c == NULL)
+    die("Could not allocate memory for new client(window)");
+
+  c->w = w;
+  c->ws = ws_curr().i;
+  c->x = wa->x;
+  c->y = wa->y;
+  c->width = wa->width;
+  c->height = wa->height;
+  c->border = wa->border_width;
+
+  client_add(c);
+}
+
+static void handle_button_press(XEvent *ev) {
+  /* Much credit to the authors of dwm for
+   * this function.
+   */
+  XButtonPressedEvent *bev = &ev->xbutton;
+  XEvent e;
+  struct client *c;
+  int x, y, ocx, ocy, nx, ny, di;
+  unsigned int dui;
+  Window dummy;
+
+  XQueryPointer(wm->d, wm->r, &dummy, &dummy, &x, &y, &di, &di, &dui);
+  msg("Handling button press event");
+  /* ws_curr_focus(bev->window); */
+  // TODO: reimplement from berry
 }
 
 void grab_mouse() {
@@ -137,10 +250,8 @@ Window get_top_level(Display *display, Window start) {
 }
 
 int main(void) {
-  XWindowAttributes attr;
-  XButtonEvent start;
+  /* XWindowAttributes attr; */
   XEvent ev;
-  Window foc;
 
   if ((wm = calloc(0, sizeof(wm))) == NULL)
     die("Could not allocate memory for the wm struct");
@@ -149,95 +260,106 @@ int main(void) {
   if (!(wm->d = XOpenDisplay(0x0)))
     die("Could not open the Xorg display");
 
+  if (find_autostart())
+    run_autostart();
+
   wm->wscnt = wm->curr = 0;
   wm->s = DefaultScreen(wm->d);
   wm->r = RootWindow(wm->d, wm->s);
 
-  find_autostart();
-  run_autostart();
+  // provide a default cursor
+  XDefineCursor(wm->d, wm->s, XCreateFontCursor(wm->d, 68));
+  XSetErrorHandler(xerror);
+  XSync(wm->d, False);
 
   // instantiate at least one workspace
-  ws_add();
   grab_mouse();
-
-  start.subwindow = None;
+  ws_add();
 
   // Infinite loop
   for (;;) {
-
-    XSetErrorHandler(xerror);
     XNextEvent(wm->d, &ev);
+    msg("Received event of type: %d", ev.type);
+    if (events[ev.type]) {
+      msg("Handling event: %d", ev.type);
+      events[ev.type](&ev);
+    }
     /* XGetInputFocus(display, &foc, &revert_to); */
-    foc = get_top_level(wm->d, ev.xkey.subwindow);
-    XSync(wm->d, False);
-    XSetInputFocus(wm->d, PointerRoot, RevertToPointerRoot, CurrentTime);
-    // provide a default cursor
-    XDefineCursor(wm->d, wm->s, XCreateFontCursor(wm->d, 68));
-
-    if (ev.type == KeyPress && ev.xkey.subwindow != None) {
-
-      // Close window with mod+q
-      if (ev.xkey.keycode == XKeysymToKeycode(wm->d, XStringToKeysym("q"))) {
-        XDestroyWindow(wm->d, foc);
-      }
-
-      // Lower windows with mod+a
-      else if (ev.xkey.keycode ==
-               XKeysymToKeycode(wm->d, XStringToKeysym("a"))) {
-        XLowerWindow(wm->d, foc);
-      }
-
-      // Raise windows with mod+s
-      else if (ev.xkey.keycode ==
-               XKeysymToKeycode(wm->d, XStringToKeysym("s"))) {
-        XRaiseWindow(wm->d, foc);
-      }
-    }
-
-    if (ev.type == KeyPress) {
-      // Open simple terminal with mod+return
-      if (ev.xkey.keycode ==
-          XKeysymToKeycode(wm->d, XStringToKeysym("Return"))) {
-        system("alacritty &");
-      }
-
-      // Open dmenu with mod+d
-      if (ev.xkey.keycode == XKeysymToKeycode(wm->d, XStringToKeysym("d"))) {
-        system("dmenu_run");
-      }
-
-      // Close aphelia with mod+backspace
-      else if (ev.xkey.keycode ==
-               XKeysymToKeycode(wm->d, XStringToKeysym("BackSpace"))) {
-        XCloseDisplay(wm->d);
-      }
-    }
-
-    if (ev.type == ButtonPress && ev.xbutton.subwindow != None) {
-
-      XGetWindowAttributes(wm->d, ev.xbutton.subwindow, &attr);
-      XSetInputFocus(wm->d, ev.xbutton.subwindow, RevertToParent, CurrentTime);
-      start = ev.xbutton;
-    }
-
-    else if (ev.type == MotionNotify && start.subwindow != None) {
-
-      int xdiff = ev.xbutton.x_root - start.x_root;
-      int ydiff = ev.xbutton.y_root - start.y_root;
-
-      XMoveResizeWindow(wm->d, start.subwindow,
-                        attr.x + (start.button == 1 ? xdiff : 0),
-                        attr.y + (start.button == 1 ? ydiff : 0),
-
-                        MAX(100, attr.width + (start.button == 3 ? xdiff : 0)),
-                        MAX(50, attr.height + (start.button == 3 ? ydiff : 0)));
-    }
-
-    else if (ev.type == ButtonRelease) {
-
-      start.subwindow = None;
-    }
+    /* workspace curr = ws_curr(); */
+    /* curr.foc = get_top_level(wm->d, ev.xkey.subwindow); */
+    /* XSetInputFocus(wm->d, PointerRoot, RevertToPointerRoot, CurrentTime); */
   }
 
   cleanup();
 }
+
+/* XButtonEvent start; */
+/* start.subwindow = None; */
+/* if (ev.type == KeyPress && ev.xkey.subwindow != None) { */
+
+/*   // Close window with mod+q */
+/*   if (ev.xkey.keycode == XKeysymToKeycode(wm->d, XStringToKeysym("q"))) {
+ */
+/*     XDestroyWindow(wm->d, foc); */
+/*   } */
+
+/*   // Lower windows with mod+a */
+/*   else if (ev.xkey.keycode == */
+/*            XKeysymToKeycode(wm->d, XStringToKeysym("a"))) { */
+/*     XLowerWindow(wm->d, foc); */
+/*   } */
+
+/*   // Raise windows with mod+s */
+/*   else if (ev.xkey.keycode == */
+/*            XKeysymToKeycode(wm->d, XStringToKeysym("s"))) { */
+/*     XRaiseWindow(wm->d, foc); */
+/*   } */
+/* } */
+
+/* if (ev.type == KeyPress) { */
+/*   // Open simple terminal with mod+return */
+/*   if (ev.xkey.keycode == */
+/*       XKeysymToKeycode(wm->d, XStringToKeysym("Return"))) { */
+/*     system("alacritty &"); */
+/*   } */
+
+/*   // Open dmenu with mod+d */
+/*   if (ev.xkey.keycode == XKeysymToKeycode(wm->d, XStringToKeysym("d"))) {
+ */
+/*     system("dmenu_run"); */
+/*   } */
+
+/*   // Close aphelia with mod+backspace */
+/*   else if (ev.xkey.keycode == */
+/*            XKeysymToKeycode(wm->d, XStringToKeysym("BackSpace"))) { */
+/*     XCloseDisplay(wm->d); */
+/*   } */
+/* } */
+
+/* } */
+
+/* if (ev.xbutton.subwindow != None) { */
+
+/*   XGetWindowAttributes(wm->d, ev.xbutton.subwindow, &attr); */
+/*   XSetInputFocus(wm->d, ev.xbutton.subwindow, RevertToParent, CurrentTime);
+ */
+
+/*   start = ev.xbutton; */
+/* } else if (ev.type == MotionNotify && start.subwindow != None) { */
+
+/*   int xdiff = ev.xbutton.x_root - start.x_root; */
+/*   int ydiff = ev.xbutton.y_root - start.y_root; */
+
+/*   XMoveResizeWindow(wm->d, start.subwindow, */
+/*                     attr.x + (start.button == 1 ? xdiff : 0), */
+/*                     attr.y + (start.button == 1 ? ydiff : 0), */
+
+/*                     MAX(100, attr.width + (start.button == 3 ? xdiff : 0)),
+ */
+
+/*                     MAX(50, attr.height + (start.button == 3 ? ydiff : *0)));
+ */
+/* } else if (ev.type == ButtonRelease) { */
+
+/*   start.subwindow = None; */
+/* } */
