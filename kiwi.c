@@ -7,6 +7,7 @@
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MOD Mod4Mask
+#define MOUSEMASK (PointerMotionMask | ButtonPressMask | ButtonReleaseMask)
 #define MAXLEN 256
 #define AUTOSTART "kiwi/autostart"
 
@@ -35,7 +36,9 @@ typedef struct {
 } client;
 
 typedef struct {
-  int i;       // the index of the workspace
+  int i; // the index of the workspace
+  int clients_len;
+  client **clients;
   client *foc; // the focused client(window)
 } workspace;
 
@@ -45,7 +48,7 @@ typedef struct {
   Window r;   // root window
 
   int wscnt, curr; // workspaces count and currently shown
-  workspace *ws;
+  workspace *ws;   // list of workspaces
 } state;
 
 typedef struct {
@@ -53,6 +56,9 @@ typedef struct {
   int width, height;
   int border;
 } geometry;
+
+static workspace ws_curr();
+static workspace *ws_add();
 
 static void handle_map_request(XEvent *ev);
 static void handle_button_press(XEvent *ev);
@@ -77,6 +83,13 @@ static void cleanup() {
   // free any workspace
   if (wm->ws != NULL)
     free(wm->ws);
+
+  if (clients != NULL && clients_len) {
+    for (int i = 0; i < clients_len; i++)
+      free(clients[i]);
+
+    free(clients);
+  }
 
   free(wm);
 }
@@ -107,8 +120,8 @@ static void run_autostart() {
 }
 
 static void client_add(client *c) {
-  printf("new window: x: %i, y: %i, w: %i, h: %i\n", c->x, c->y, c->width,
-         c->height);
+  msg("added client(id: %lu, x: %i, y: %i, w: %i, h: %i)\n", c->w, c->x, c->y,
+      c->width, c->height);
   clients_len++;
 
   // assign the needed memory
@@ -121,6 +134,17 @@ static void client_add(client *c) {
   }
 
   clients[clients_len - 1] = c;
+
+  workspace ws = ws_curr();
+  ws.clients_len++;
+  // add the client to the workspace list of clients
+  if (ws.clients == NULL && clients_len == 0) {
+    if ((clients = calloc(0, sizeof(client *))) == NULL)
+      die("Cannot initialize the clients array");
+  } else {
+    if ((clients = realloc(clients, sizeof(client *) * clients_len)) == NULL)
+      die("Cannot increase array of clients");
+  }
 }
 
 static client *client_from_window(Window w) {
@@ -130,6 +154,13 @@ static client *client_from_window(Window w) {
   }
 
   return NULL;
+}
+
+static void client_move(client *c, int x, int y) {
+  XMoveWindow(wm->d, c->w, x, y);
+
+  c->x = x;
+  c->y = y;
 }
 
 static void ws_sel(int i) { wm->curr = i; }
@@ -156,13 +187,13 @@ static workspace *ws_add() {
   return ws;
 }
 
-static void ws_curr_focus(client *c) {
+static void ws_focus(client *c) {
   workspace ws;
 
   ws = ws_curr();
   ws.foc = c;
 
-  // TODO: xorg focus
+  XSetInputFocus(wm->d, c->w, RevertToPointerRoot, CurrentTime);
 }
 
 static void handle_map_request(XEvent *ev) {
@@ -201,6 +232,15 @@ static void handle_new_window(Window w, XWindowAttributes *wa) {
   c->border = wa->border_width;
 
   client_add(c);
+
+  // resize the window(needed for some applications), map it(display) and select
+  // any input (mouse/keyboard) from it
+  XMoveResizeWindow(wm->d, c->w, c->x, c->y, c->width, c->height);
+  XMapWindow(wm->d, c->w);
+  XSelectInput(wm->d, c->w,
+               EnterWindowMask | FocusChangeMask | PropertyChangeMask |
+                   StructureNotifyMask);
+  ws_focus(c);
 }
 
 static void handle_button_press(XEvent *ev) {
@@ -209,15 +249,41 @@ static void handle_button_press(XEvent *ev) {
    */
   XButtonPressedEvent *bev = &ev->xbutton;
   XEvent e;
-  struct client *c;
+  client *c;
   int x, y, ocx, ocy, nx, ny, di;
   unsigned int dui;
   Window dummy;
 
   XQueryPointer(wm->d, wm->r, &dummy, &dummy, &x, &y, &di, &di, &dui);
   msg("Handling button press event");
-  /* ws_curr_focus(bev->window); */
-  // TODO: reimplement from berry
+  c = client_from_window(bev->window);
+  if (c == NULL) {
+    warn("Button click on unkown client (w: %d)", bev->window);
+    return;
+  }
+
+  if (c != ws_curr().foc)
+    ws_focus(c);
+
+  ocx = c->x;
+  ocy = c->y;
+  if (XGrabPointer(wm->d, wm->r, False, MOUSEMASK, GrabModeAsync, GrabModeAsync,
+                   None, False /* move_cursor */, CurrentTime) != GrabSuccess)
+    return;
+
+  // grab all events while the mouse is held down
+  do {
+    XMaskEvent(wm->d, MOUSEMASK | ExposureMask | SubstructureRedirectMask, &e);
+    switch (e.type) {
+    case MotionNotify:
+      msg("Handling motion notify event");
+      nx = ocx + (e.xmotion.x - x);
+      ny = ocy + (e.xmotion.y - y);
+      client_move(c, nx, ny);
+      break;
+    }
+  } while (e.type != ButtonRelease);
+  XUngrabPointer(wm->d, CurrentTime);
 }
 
 void grab_events() {
@@ -286,7 +352,7 @@ int main(void) {
   // Infinite loop
   for (;;) {
     XNextEvent(wm->d, &ev);
-    msg("Received event of type: %d", ev.type);
+    /* msg("Received event of type: %d", ev.type); */
     if (events[ev.type]) {
       msg("Handling event: %d", ev.type);
       events[ev.type](&ev);
