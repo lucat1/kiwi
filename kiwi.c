@@ -59,8 +59,9 @@ static void handle_button_press(XEvent *ev);
 
 static void handle_new_window(Window w, XWindowAttributes *wa);
 
-char cfgp[MAXLEN];       // path to config file
-static state *wm;        // wm global state
+char cfgp[MAXLEN];          // path to config file
+static state *wm;           // wm global state
+static int clients_len = 0; // the length of the clients array
 static client **clients; // list of available clients (wrapper around windows)
 static void (*events[LASTEvent])(XEvent *e) = {
     [MapRequest] = handle_map_request,
@@ -106,24 +107,25 @@ static void run_autostart() {
 }
 
 static void client_add(client *c) {
-  if (clients == NULL && (clients = calloc(0, sizeof(client **))) == NULL) {
-    die("Cannot initialize the clients array");
+  printf("new window: x: %i, y: %i, w: %i, h: %i\n", c->x, c->y, c->width,
+         c->height);
+  clients_len++;
+
+  // assign the needed memory
+  if (clients == NULL && clients_len == 0) {
+    if ((clients = calloc(0, sizeof(client *))) == NULL)
+      die("Cannot initialize the clients array");
   } else {
-    /* size_t s = sizeof(client *) * (sizeof(clients) / sizeof(client *) + 1);
-     */
-    size_t s = sizeof(client **) + sizeof(clients);
-    if ((clients = realloc(clients, s)) == NULL)
+    if ((clients = realloc(clients, sizeof(client *) * clients_len)) == NULL)
       die("Cannot increase array of clients");
   }
 
-  int i = sizeof(clients) / sizeof(client **);
-  clients[i] = c;
+  clients[clients_len - 1] = c;
 }
 
 static client *client_from_window(Window w) {
-  int i, len = sizeof(clients) / sizeof(client **);
-  for (i = 0; i < len; i++) {
-    if (clients[i]->w == w)
+  for (int i = 0; i < clients_len; i++) {
+    if (clients[i] != NULL && clients[i]->w == w)
       return clients[i];
   }
 
@@ -167,9 +169,10 @@ static void handle_map_request(XEvent *ev) {
   static XWindowAttributes wa;
   XMapRequestEvent *e = &ev->xmaprequest;
 
-  msg("Handling map request event");
-  if (!XGetWindowAttributes(wm->d, e->window, &wa))
+  if (!XGetWindowAttributes(wm->d, e->window, &wa)) {
+    warn("Could not get window attributes (%d)", e->window);
     return;
+  }
 
   if (wa.override_redirect)
     return;
@@ -217,7 +220,7 @@ static void handle_button_press(XEvent *ev) {
   // TODO: reimplement from berry
 }
 
-void grab_mouse() {
+void grab_events() {
   unsigned int i, j, modifiers[] = {0, LockMask, 0, 0 | LockMask};
 
   for (i = 1; i < 4; i += 2)
@@ -225,6 +228,10 @@ void grab_mouse() {
       XGrabButton(wm->d, i, MOD | modifiers[j], wm->r, True,
                   ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
                   GrabModeAsync, GrabModeAsync, None, None);
+
+  XSelectInput(wm->d, wm->r,
+               SubstructureRedirectMask | SubstructureNotifyMask |
+                   ButtonPressMask | Button1Mask);
 }
 
 Window get_top_level(Display *display, Window start) {
@@ -273,7 +280,7 @@ int main(void) {
   XSync(wm->d, False);
 
   // instantiate at least one workspace
-  grab_mouse();
+  grab_events();
   ws_add();
 
   // Infinite loop
