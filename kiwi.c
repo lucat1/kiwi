@@ -311,10 +311,6 @@ static void handle_button_press(XEvent *ev) {
   if (ev->xbutton.state == 0)
     return;
 
-  // don't drag / resize of the modifier key is not held down
-  /* if(bev->stategcc) */
-  msg("state: %i; cfg: %i", bev->state, cfg.move_mask);
-
   ocx = c->x;
   ocy = c->y;
   if (XGrabPointer(wm->d, wm->r, False, MOUSEMASK, GrabModeAsync, GrabModeAsync,
