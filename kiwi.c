@@ -6,7 +6,6 @@
 #include <X11/Xlib.h>
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
-#define MOD Mod4Mask
 #define MOUSEMASK (PointerMotionMask | ButtonPressMask | ButtonReleaseMask)
 #define MAXLEN 256
 #define AUTOSTART "kiwi/autostart"
@@ -291,7 +290,7 @@ void grab_events() {
 
   for (i = 1; i < 4; i += 2)
     for (j = 0; j < sizeof(modifiers) / sizeof(*modifiers); j++)
-      XGrabButton(wm->d, i, MOD | modifiers[j], wm->r, True,
+      XGrabButton(wm->d, i, modifiers[j], wm->r, True,
                   ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
                   GrabModeAsync, GrabModeAsync, None, None);
 
