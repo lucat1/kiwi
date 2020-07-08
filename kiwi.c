@@ -10,8 +10,10 @@
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MOUSEMASK (PointerMotionMask | ButtonPressMask | ButtonReleaseMask)
+
 #define MAXLEN 256
 #define AUTOSTART "kiwi/autostart"
+#define MINIMUM_DIM 100
 
 #define die(...)                                                               \
   _m("FAIL", __FILE__, __LINE__, __VA_ARGS__), cleanup(), exit(1);
@@ -63,12 +65,14 @@ typedef struct {
   Mask move_mask, resize_mask;
 } config;
 
+static void cleanup();
+static void setup();
+
 static workspace ws_curr();
 static workspace *ws_add();
 
 static void handle_map_request(XEvent *ev);
 static void handle_button_press(XEvent *ev);
-
 static void handle_new_window(Window w, XWindowAttributes *wa);
 
 char cfgp[MAXLEN]; // path to config file
@@ -99,9 +103,8 @@ static int xerror(Display *d, XErrorEvent *ee) {
       (ee->request_code == X_CopyArea && ee->error_code == BadDrawable))
     return 0;
 
-  fprintf(stderr, "dwm: fatal error: request code=%d, error code=%d\n",
-          ee->request_code, ee->error_code);
-
+  die("fatal error: request code=%d, error code=%d", ee->request_code,
+      ee->error_code);
   return xerrorxlib(d, ee); /* may call exit */
 }
 
@@ -193,8 +196,11 @@ static void client_move(client *c, int x, int y) {
   c->y = y;
 }
 
-static void client_resize(client *c, int x, int y) {
-  // TODO: resize
+static void client_resize(client *c, int w, int h) {
+  XResizeWindow(wm->d, c->w, MAX(w, MINIMUM_DIM), MAX(h, MINIMUM_DIM));
+
+  c->width = MAX(w, MINIMUM_DIM);
+  c->height = MAX(h, MINIMUM_DIM);
 }
 
 static void ws_sel(int i) { wm->curr = i; }
@@ -317,6 +323,12 @@ static void handle_button_press(XEvent *ev) {
                    None, False /* move_cursor */, CurrentTime) != GrabSuccess)
     return;
 
+  // make a copy of the geometry values as they'll change during resizing/moving
+  ocx = c->x;
+  ocy = c->y;
+  ocw = c->width;
+  och = c->height;
+
   // grab all events while the mouse is held down
   do {
     XMaskEvent(wm->d, MOUSEMASK | ExposureMask | SubstructureRedirectMask, &e);
@@ -346,9 +358,7 @@ static void handle_button_press(XEvent *ev) {
   XUngrabPointer(wm->d, CurrentTime);
 }
 
-void setup() {
-  unsigned int i, j, modifiers[] = {0, LockMask, 0, 0 | LockMask};
-
+static void setup() {
   wm->wscnt = wm->curr = 0;
   wm->s = DefaultScreen(wm->d);
   wm->r = RootWindow(wm->d, wm->s);
@@ -365,29 +375,7 @@ void setup() {
   ws_add();
 
   // provide a default cursor
-  /* xerrorxlib = XSetErrorHandler(xerror); */
-}
-
-Window get_top_level(Display *display, Window start) {
-  Window root = None, parent, curr = start;
-  Window *children;
-  unsigned int nchildren;
-  Status st;
-
-  while (curr && curr != None && curr != root) {
-    st = XQueryTree(display, curr, &root, &parent, &children, &nchildren);
-    if (!st) {
-      return None;
-    }
-    XFree(children);
-
-    if (root == parent) {
-      return curr;
-    }
-    curr = parent;
-  }
-
-  return None;
+  xerrorxlib = XSetErrorHandler(xerror);
 }
 
 int main(void) {
