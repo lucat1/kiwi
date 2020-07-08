@@ -4,6 +4,9 @@
 #include <unistd.h>
 
 #include <X11/Xlib.h>
+#include <X11/Xproto.h>
+#include <X11/Xutil.h>
+#include <X11/cursorfont.h>
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MOUSEMASK (PointerMotionMask | ButtonPressMask | ButtonReleaseMask)
@@ -56,6 +59,10 @@ typedef struct {
   int border;
 } geometry;
 
+typedef struct {
+  Mask move_mask, resize_mask;
+} config;
+
 static workspace ws_curr();
 static workspace *ws_add();
 
@@ -64,16 +71,39 @@ static void handle_button_press(XEvent *ev);
 
 static void handle_new_window(Window w, XWindowAttributes *wa);
 
-char cfgp[MAXLEN];          // path to config file
-static state *wm;           // wm global state
+char cfgp[MAXLEN]; // path to config file
+static state *wm;  // wm global state
+
 static int clients_len = 0; // the length of the clients array
 static client **clients; // list of available clients (wrapper around windows)
+static config cfg = {Mod4Mask, Mod1Mask};
+
+static Cursor move_cursor, normal_cursor;
+static int (*xerrorxlib)(Display *, XErrorEvent *);
+
 static void (*events[LASTEvent])(XEvent *e) = {
     [MapRequest] = handle_map_request,
     [ButtonPress] = handle_button_press,
 };
 
-static int xerror() { return 0; }
+static int xerror(Display *d, XErrorEvent *ee) {
+  if (ee->error_code == BadWindow ||
+      (ee->request_code == X_SetInputFocus && ee->error_code == BadMatch) ||
+      (ee->request_code == X_PolyText8 && ee->error_code == BadDrawable) ||
+      (ee->request_code == X_PolyFillRectangle &&
+       ee->error_code == BadDrawable) ||
+      (ee->request_code == X_PolySegment && ee->error_code == BadDrawable) ||
+      (ee->request_code == X_ConfigureWindow && ee->error_code == BadMatch) ||
+      (ee->request_code == X_GrabButton && ee->error_code == BadAccess) ||
+      (ee->request_code == X_GrabKey && ee->error_code == BadAccess) ||
+      (ee->request_code == X_CopyArea && ee->error_code == BadDrawable))
+    return 0;
+
+  fprintf(stderr, "dwm: fatal error: request code=%d, error code=%d\n",
+          ee->request_code, ee->error_code);
+
+  return xerrorxlib(d, ee); /* may call exit */
+}
 
 static void cleanup() {
   if (wm == NULL)
@@ -90,6 +120,7 @@ static void cleanup() {
     free(clients);
   }
 
+  XCloseDisplay(wm->d);
   free(wm);
 }
 
@@ -119,7 +150,7 @@ static void run_autostart() {
 }
 
 static void client_add(client *c) {
-  msg("added client(id: %lu, x: %i, y: %i, w: %i, h: %i)\n", c->w, c->x, c->y,
+  msg("added client(id: %lu, x: %i, y: %i, w: %i, h: %i)", c->w, c->x, c->y,
       c->width, c->height);
   clients_len++;
 
@@ -162,6 +193,10 @@ static void client_move(client *c, int x, int y) {
   c->y = y;
 }
 
+static void client_resize(client *c, int x, int y) {
+  // TODO: resize
+}
+
 static void ws_sel(int i) { wm->curr = i; }
 static workspace ws_curr() { return wm->ws[wm->curr]; }
 
@@ -193,6 +228,7 @@ static void ws_focus(client *c) {
   ws.foc = c;
 
   XSetInputFocus(wm->d, c->w, RevertToPointerRoot, CurrentTime);
+  XRaiseWindow(wm->d, c->w);
 }
 
 static void handle_map_request(XEvent *ev) {
@@ -234,13 +270,18 @@ static void handle_new_window(Window w, XWindowAttributes *wa) {
 
   client_add(c);
 
-  // resize the window(needed for some applications), map it(display) and select
-  // any input (mouse/keyboard) from it
+  // resize the window(needed for some applications) and map it(display)
   XMoveResizeWindow(wm->d, c->w, c->x, c->y, c->width, c->height);
   XMapWindow(wm->d, c->w);
+
+  // grab events
   XSelectInput(wm->d, c->w,
                EnterWindowMask | FocusChangeMask | PropertyChangeMask |
                    StructureNotifyMask);
+  XGrabButton(wm->d, Button1, AnyModifier, c->w, True,
+              ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
+              GrabModeAsync, GrabModeAsync, None, None);
+
   ws_focus(c);
 }
 
@@ -251,7 +292,7 @@ static void handle_button_press(XEvent *ev) {
   XButtonPressedEvent *bev = &ev->xbutton;
   XEvent e;
   client *c;
-  int x, y, ocx, ocy, nx, ny, di;
+  int x, y, ocx, ocy, nx, ny, nw, nh, di, ocw, och;
   unsigned int dui;
   Window dummy;
 
@@ -266,6 +307,14 @@ static void handle_button_press(XEvent *ev) {
   if (c != ws_curr().foc)
     ws_focus(c);
 
+  // stop here if we don't have any modifier applied
+  if (ev->xbutton.state == 0)
+    return;
+
+  // don't drag / resize of the modifier key is not held down
+  /* if(bev->stategcc) */
+  msg("state: %i; cfg: %i", bev->state, cfg.move_mask);
+
   ocx = c->x;
   ocy = c->y;
   if (XGrabPointer(wm->d, wm->r, False, MOUSEMASK, GrabModeAsync, GrabModeAsync,
@@ -276,29 +325,51 @@ static void handle_button_press(XEvent *ev) {
   do {
     XMaskEvent(wm->d, MOUSEMASK | ExposureMask | SubstructureRedirectMask, &e);
     switch (e.type) {
+    case ConfigureRequest:
+    case Expose:
+    case MapRequest:
+      events[e.type](&e);
+      break;
+
     case MotionNotify:
       msg("Handling motion notify event");
-      nx = ocx + (e.xmotion.x - x);
-      ny = ocy + (e.xmotion.y - y);
-      client_move(c, nx, ny);
+      if (e.xbutton.state == (cfg.move_mask | Button1Mask) ||
+          e.xbutton.state == Button1Mask) {
+        nx = ocx + (e.xmotion.x - x);
+        ny = ocy + (e.xmotion.y - y);
+        client_move(c, nx, ny);
+      } else if (e.xbutton.state == (cfg.resize_mask | Button1Mask)) {
+        nw = e.xmotion.x - x;
+        nh = e.xmotion.y - y;
+        client_resize(c, ocw + nw, och + nh);
+      }
+
       break;
     }
   } while (e.type != ButtonRelease);
   XUngrabPointer(wm->d, CurrentTime);
 }
 
-void grab_events() {
+void setup() {
   unsigned int i, j, modifiers[] = {0, LockMask, 0, 0 | LockMask};
 
-  for (i = 1; i < 4; i += 2)
-    for (j = 0; j < sizeof(modifiers) / sizeof(*modifiers); j++)
-      XGrabButton(wm->d, i, modifiers[j], wm->r, True,
-                  ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
-                  GrabModeAsync, GrabModeAsync, None, None);
+  wm->wscnt = wm->curr = 0;
+  wm->s = DefaultScreen(wm->d);
+  wm->r = RootWindow(wm->d, wm->s);
+
+  move_cursor = XCreateFontCursor(wm->d, XC_crosshair);
+  normal_cursor = XCreateFontCursor(wm->d, XC_left_ptr);
+  XDefineCursor(wm->d, wm->r, normal_cursor);
 
   XSelectInput(wm->d, wm->r,
                SubstructureRedirectMask | SubstructureNotifyMask |
                    ButtonPressMask | Button1Mask);
+
+  // instantiate at least one workspace
+  ws_add();
+
+  // provide a default cursor
+  /* xerrorxlib = XSetErrorHandler(xerror); */
 }
 
 Window get_top_level(Display *display, Window start) {
@@ -337,30 +408,14 @@ int main(void) {
   if (find_autostart())
     run_autostart();
 
-  wm->wscnt = wm->curr = 0;
-  wm->s = DefaultScreen(wm->d);
-  wm->r = RootWindow(wm->d, wm->s);
+  setup();
 
-  // provide a default cursor
-  XDefineCursor(wm->d, wm->s, XCreateFontCursor(wm->d, 68));
-  XSetErrorHandler(xerror);
   XSync(wm->d, False);
-
-  // instantiate at least one workspace
-  grab_events();
-  ws_add();
-
-  // Infinite loop
-  for (;;) {
-    XNextEvent(wm->d, &ev);
-    /* msg("Received event of type: %d", ev.type); */
+  while (!XNextEvent(wm->d, &ev)) {
+    msg("Received event of type: %d", ev.type);
     if (events[ev.type]) {
       events[ev.type](&ev);
     }
-    /* XGetInputFocus(display, &foc, &revert_to); */
-    /* workspace curr = ws_curr(); */
-    /* curr.foc = get_top_level(wm->d, ev.xkey.subwindow); */
-    /* XSetInputFocus(wm->d, PointerRoot, RevertToPointerRoot, CurrentTime); */
   }
 
   cleanup();
