@@ -207,6 +207,8 @@ static void handle_map_request(XEvent *ev) {
   if (wa.override_redirect)
     return;
 
+  msg("Handling request map event");
+
   handle_new_window(e->window, &wa);
 }
 
@@ -353,7 +355,6 @@ int main(void) {
     XNextEvent(wm->d, &ev);
     /* msg("Received event of type: %d", ev.type); */
     if (events[ev.type]) {
-      msg("Handling event: %d", ev.type);
       events[ev.type](&ev);
     }
     /* XGetInputFocus(display, &foc, &revert_to); */
