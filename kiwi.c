@@ -62,7 +62,7 @@ typedef struct {
 } geometry;
 
 typedef struct {
-  Mask move_mask, resize_mask;
+  Mask mask;
 } config;
 
 static void cleanup();
@@ -80,7 +80,7 @@ static state *wm;  // wm global state
 
 static int clients_len = 0; // the length of the clients array
 static client **clients; // list of available clients (wrapper around windows)
-static config cfg = {Mod4Mask, Mod1Mask};
+static config cfg = {Mod4Mask};
 
 static Cursor move_cursor, normal_cursor;
 static int (*xerrorxlib)(Display *, XErrorEvent *);
@@ -284,9 +284,12 @@ static void handle_new_window(Window w, XWindowAttributes *wa) {
   XSelectInput(wm->d, c->w,
                EnterWindowMask | FocusChangeMask | PropertyChangeMask |
                    StructureNotifyMask);
-  XGrabButton(wm->d, Button1, AnyModifier, c->w, True,
+  XGrabButton(wm->d, Button1, Mod4Mask, c->w, True,
               ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
-              GrabModeAsync, GrabModeAsync, None, None);
+              GrabModeAsync, GrabModeAsync, c->w, None);
+  XGrabButton(wm->d, Button3, Mod4Mask, c->w, True,
+              ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
+              GrabModeAsync, GrabModeAsync, c->w, None);
 
   ws_focus(c);
 }
@@ -314,20 +317,22 @@ static void handle_button_press(XEvent *ev) {
     ws_focus(c);
 
   // stop here if we don't have any modifier applied
-  if (ev->xbutton.state == 0)
-    return;
+  if (ev->xbutton.state == 0) {
+    // propagate the event to the window (bubble)
+    XSendEvent(wm->d, c->w, False, NoEventMask, ev);
 
-  ocx = c->x;
-  ocy = c->y;
-  if (XGrabPointer(wm->d, wm->r, False, MOUSEMASK, GrabModeAsync, GrabModeAsync,
-                   None, False /* move_cursor */, CurrentTime) != GrabSuccess)
     return;
+  }
 
   // make a copy of the geometry values as they'll change during resizing/moving
   ocx = c->x;
   ocy = c->y;
   ocw = c->width;
   och = c->height;
+
+  if (XGrabPointer(wm->d, wm->r, False, MOUSEMASK, GrabModeAsync, GrabModeAsync,
+                   None, move_cursor, CurrentTime) != GrabSuccess)
+    return;
 
   // grab all events while the mouse is held down
   do {
@@ -341,12 +346,12 @@ static void handle_button_press(XEvent *ev) {
 
     case MotionNotify:
       msg("Handling motion notify event");
-      if (e.xbutton.state == (cfg.move_mask | Button1Mask) ||
+      if (e.xbutton.state == (cfg.mask | Button1Mask) ||
           e.xbutton.state == Button1Mask) {
         nx = ocx + (e.xmotion.x - x);
         ny = ocy + (e.xmotion.y - y);
         client_move(c, nx, ny);
-      } else if (e.xbutton.state == (cfg.resize_mask | Button1Mask)) {
+      } else if (e.xbutton.state == (cfg.mask | Button3Mask)) {
         nw = e.xmotion.x - x;
         nh = e.xmotion.y - y;
         client_resize(c, ocw + nw, och + nh);
