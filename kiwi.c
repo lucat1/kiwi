@@ -13,16 +13,26 @@
 static void cleanup();
 static void setup();
 
-static workspace ws_curr();
+static workspace *ws_curr();
 static workspace *ws_add();
+static void ws_sel(int i);
 
 static void client_add(client *c);
+static void client_focus(client *c);
 static void client_move(client *c, int x, int y);
 static void client_resize(client *c, int w, int h);
+static void client_close(client *c);
+static void client_kill(client *c);
+static void client_delete(client *c);
 
 static void handle_map_request(XEvent *ev);
+static void handle_unmap_notify(XEvent *ev);
+static void handle_client_message(XEvent *ev);
 static void handle_button_press(XEvent *ev);
 static void handle_new_window(Window w, XWindowAttributes *wa);
+
+static void kiwic_close(long *e);
+static void kiwic_kill(long *e);
 
 char cfgp[MAXLEN]; // path to config file
 static state *wm;  // wm global state
@@ -30,13 +40,21 @@ static state *wm;  // wm global state
 static int clients_len = 0; // the length of the clients array
 static client **clients; // list of available clients (wrapper around windows)
 static config cfg = {Mod4Mask};
+static Atom wm_atom[WMLast], net_kiwi[KiwiLast];
 
 static Cursor move_cursor, normal_cursor;
 static int (*xerrorxlib)(Display *, XErrorEvent *);
 
 static void (*events[LASTEvent])(XEvent *e) = {
     [MapRequest] = handle_map_request,
+    [UnmapNotify] = handle_unmap_notify,
+    [ClientMessage] = handle_client_message,
     [ButtonPress] = handle_button_press,
+};
+
+static void (*kiwic_events[KiwicLast])(long *) = {
+    [KiwicClose] = kiwic_close,
+    [KiwicKill] = kiwic_kill,
 };
 
 static int xerror(Display *d, XErrorEvent *ee) {
@@ -115,27 +133,11 @@ static void client_add(client *c) {
       die("Cannot increase array of clients");
   }
 
+  // add it to the array of clients
   clients[clients_len - 1] = c;
 
-  workspace ws = ws_curr();
-  ws.clients_len++;
-  // add the client to the workspace list of clients
-  if (ws.clients == NULL && clients_len == 0) {
-    if ((clients = calloc(0, sizeof(client *))) == NULL)
-      die("Cannot initialize the clients array");
-  } else {
-    if ((clients = realloc(clients, sizeof(client *) * clients_len)) == NULL)
-      die("Cannot increase array of clients");
-  }
-}
-
-static void client_center(client *c) {
-  int x, y;
-
-  x = (wm->width - c->width) / 2;
-  y = (wm->height - c->height) / 2;
-
-  client_move(c, x, y);
+  // focus it on the current workspace
+  client_focus(c);
 }
 
 static client *client_from_window(Window w) {
@@ -145,6 +147,25 @@ static client *client_from_window(Window w) {
   }
 
   return NULL;
+}
+
+static void client_focus(client *c) {
+  workspace *ws;
+
+  ws = ws_curr();
+  ws->foc = c;
+
+  XSetInputFocus(wm->d, c->w, RevertToPointerRoot, CurrentTime);
+  XRaiseWindow(wm->d, c->w);
+}
+
+static void client_center(client *c) {
+  int x, y;
+
+  x = (wm->width - c->width) / 2;
+  y = (wm->height - c->height) / 2;
+
+  client_move(c, x, y);
 }
 
 static void client_move(client *c, int x, int y) {
@@ -161,8 +182,49 @@ static void client_resize(client *c, int w, int h) {
   c->height = MAX(h, MINIMUM_DIM);
 }
 
-static void ws_sel(int i) { wm->curr = i; }
-static workspace ws_curr() { return wm->ws[wm->curr]; }
+static void client_close(client *c) {
+  XEvent ev;
+
+  ev.type = ClientMessage;
+  ev.xclient.window = c->w;
+  ev.xclient.message_type = wm_atom[WMProtocols];
+  ev.xclient.format = 32;
+  ev.xclient.data.l[0] = wm_atom[WMDeleteWindow];
+  ev.xclient.data.l[1] = CurrentTime;
+
+  XSendEvent(wm->d, c->w, False, NoEventMask, &ev);
+  msg("Closing client %d", c->w);
+}
+
+static void client_kill(client *c) { XKillClient(wm->d, c->w); }
+
+// removes the client from any leftover reference and frees the memory
+static void client_delete(client *c) {
+  int i, x;
+  workspace *ws;
+
+  for (i = 0; i < clients_len; i++)
+    if (clients[i] == c)
+      break;
+
+  // replace clients coming afterwards
+  for (; i < clients_len; i++)
+    clients[i] = clients[i - 1];
+
+  // remove the focused reference from any workspace (if avaiable)
+  for (i = 0; i < wm->wscnt; i++) {
+    ws = wm->ws[i];
+
+    if (ws->foc == c)
+      // TODO: refocus !!!
+      ws->foc = NULL;
+  }
+
+  free(c);
+  msg("Removed client from memory");
+}
+
+static workspace *ws_curr() { return wm->ws[wm->curr]; }
 
 static workspace *ws_add() {
   workspace *ws;
@@ -174,26 +236,18 @@ static workspace *ws_add() {
   // expand the ws array in wm and add the new workspace to it
   // NOTE: we wanna check if the array has been initialized first tough
   //  as this might be the first workspace we add
-  if (wm->ws == NULL && (wm->ws = calloc(0, sizeof(workspace))) == NULL) {
+  if (wm->ws == NULL && (wm->ws = calloc(0, sizeof(workspace *))) == NULL) {
     die("Cannot initialize the workspaces array");
-  } else if ((wm->ws = realloc(wm->ws, (sizeof(workspace)) * wm->wscnt)) ==
+  } else if ((wm->ws = realloc(wm->ws, sizeof(workspace *) * wm->wscnt)) ==
              NULL) {
     die("Cannot increase array of workspaces");
   }
 
-  wm->ws[ws->i] = *ws;
+  wm->ws[wm->wscnt - 1] = ws;
   return ws;
 }
 
-static void ws_focus(client *c) {
-  workspace ws;
-
-  ws = ws_curr();
-  ws.foc = c;
-
-  XSetInputFocus(wm->d, c->w, RevertToPointerRoot, CurrentTime);
-  XRaiseWindow(wm->d, c->w);
-}
+static void ws_sel(int i) { wm->curr = i; }
 
 static void handle_map_request(XEvent *ev) {
   static XWindowAttributes wa;
@@ -212,6 +266,40 @@ static void handle_map_request(XEvent *ev) {
   handle_new_window(e->window, &wa);
 }
 
+static void handle_unmap_notify(XEvent *ev) {
+  XUnmapEvent *e = &ev->xunmap;
+  client *c = client_from_window(e->window);
+
+  if (c != NULL) {
+    warn("Recieved UnmapNotify event for a non-managed client %d", e->window);
+    return;
+  }
+  /* focus_best(c); */
+  client_delete(c);
+}
+
+static void handle_client_message(XEvent *ev) {
+  XClientMessageEvent *cme = &ev->xclient;
+  long cmd, *data;
+
+  if (cme->message_type == net_kiwi[KiwiClientEvent]) {
+    if (cme->format != 32) {
+      warn("Invalid message format. Ignoring");
+      return;
+    }
+
+    msg("Recieved kiwic message");
+    cmd = cme->data.l[0];
+    data = cme->data.l;
+    if (kiwic_events[cmd])
+      kiwic_events[cmd](data);
+    else
+      warn("Invalid kiwic message (command)");
+  }
+
+  msg("Unhandled client message: %lu", cme->message_type);
+}
+
 static void handle_new_window(Window w, XWindowAttributes *wa) {
   client *c;
 
@@ -225,7 +313,7 @@ static void handle_new_window(Window w, XWindowAttributes *wa) {
     die("Could not allocate memory for new client(window)");
 
   c->w = w;
-  c->ws = ws_curr().i;
+  c->ws = ws_curr()->i;
   c->x = wa->x;
   c->y = wa->y;
   c->width = wa->width;
@@ -249,7 +337,7 @@ static void handle_new_window(Window w, XWindowAttributes *wa) {
               ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
               GrabModeAsync, GrabModeAsync, None, None);
 
-  ws_focus(c);
+  client_focus(c);
 }
 
 static void handle_button_press(XEvent *ev) {
@@ -271,8 +359,8 @@ static void handle_button_press(XEvent *ev) {
     return;
   }
 
-  if (c != ws_curr().foc)
-    ws_focus(c);
+  if (c != ws_curr()->foc)
+    client_focus(c);
 
   // make a copy of the geometry values as they'll change during resizing/moving
   ocx = c->x;
@@ -313,6 +401,10 @@ static void handle_button_press(XEvent *ev) {
   XUngrabPointer(wm->d, CurrentTime);
 }
 
+// TODO(for both): change focused client !!!
+static void kiwic_close(long *e) { client_close(ws_curr()->foc); }
+static void kiwic_kill(long *e) { client_kill(ws_curr()->foc); }
+
 static void setup() {
   wm->wscnt = wm->curr = 0;
   wm->s = DefaultScreen(wm->d);
@@ -320,6 +412,13 @@ static void setup() {
   int s = DefaultScreen(wm->d);
   wm->width = DisplayWidth(wm->d, s);
   wm->height = DisplayHeight(wm->d, s);
+
+  // gather atoms
+  net_kiwi[KiwiClientEvent] = XInternAtom(wm->d, KIWI_CLIENT_EVENT, False);
+
+  wm_atom[WMDeleteWindow] = XInternAtom(wm->d, "WM_DELETE_WINDOW", False);
+  wm_atom[WMTakeFocus] = XInternAtom(wm->d, "WM_TAKE_FOCUS", False);
+  wm_atom[WMProtocols] = XInternAtom(wm->d, "WM_PROTOCOLS", False);
 
   move_cursor = XCreateFontCursor(wm->d, XC_crosshair);
   normal_cursor = XCreateFontCursor(wm->d, XC_left_ptr);
@@ -344,7 +443,7 @@ int main(void) {
     die("Could not allocate memory for the wm struct");
 
   // Exit if display doesn't instantiate
-  if (!(wm->d = XOpenDisplay(0x0)))
+  if (!(wm->d = XOpenDisplay(NULL)))
     die("Could not open the Xorg display");
 
   if (find_autostart())

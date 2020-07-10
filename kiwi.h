@@ -4,6 +4,7 @@
 #include <X11/Xlib.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MOUSEMASK (PointerMotionMask | ButtonPressMask | ButtonReleaseMask)
@@ -12,8 +13,7 @@
 #define AUTOSTART "kiwi/autostart"
 #define MINIMUM_DIM 100
 
-#define die(...)                                                               \
-  _m("FAIL", __FILE__, __LINE__, __VA_ARGS__), cleanup(), exit(1);
+#define die(...) _m("FAIL", __FILE__, __LINE__, __VA_ARGS__), exit(1);
 #define warn(...) _m("WARN", __FILE__, __LINE__, __VA_ARGS__)
 #define msg(...) _m("OK", __FILE__, __LINE__, __VA_ARGS__)
 
@@ -37,9 +37,7 @@ typedef struct {
 } client;
 
 typedef struct {
-  int i; // the index of the workspace
-  int clients_len;
-  client **clients;
+  int i;       // the index of the workspace
   client *foc; // the focused client(window)
 } workspace;
 
@@ -50,11 +48,22 @@ typedef struct {
   int width, height; // screen width and height
 
   int wscnt, curr; // workspaces count and currently shown
-  workspace *ws;   // list of workspaces
+  workspace **ws;  // list of workspaces
 } state;
 
 typedef struct {
   Mask mask;
 } config;
+
+#define KIWI_CLIENT_EVENT "KIWI_CLIENT_EVENT"
+enum kiwi_net { KiwiClientEvent, KiwiLast };
+
+enum kiwic_cmds { KiwicClose, KiwicKill, KiwicLast };
+enum atoms_wm {
+  WMDeleteWindow,
+  WMProtocols,
+  WMTakeFocus,
+  WMLast,
+};
 
 #endif // KIWI_H
