@@ -286,10 +286,10 @@ static void handle_new_window(Window w, XWindowAttributes *wa) {
                    StructureNotifyMask);
   XGrabButton(wm->d, Button1, Mod4Mask, c->w, True,
               ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
-              GrabModeAsync, GrabModeAsync, c->w, None);
+              GrabModeAsync, GrabModeAsync, None, None);
   XGrabButton(wm->d, Button3, Mod4Mask, c->w, True,
               ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
-              GrabModeAsync, GrabModeAsync, c->w, None);
+              GrabModeAsync, GrabModeAsync, None, None);
 
   ws_focus(c);
 }
@@ -315,14 +315,6 @@ static void handle_button_press(XEvent *ev) {
 
   if (c != ws_curr().foc)
     ws_focus(c);
-
-  // stop here if we don't have any modifier applied
-  if (ev->xbutton.state == 0) {
-    // propagate the event to the window (bubble)
-    XSendEvent(wm->d, c->w, False, NoEventMask, ev);
-
-    return;
-  }
 
   // make a copy of the geometry values as they'll change during resizing/moving
   ocx = c->x;
