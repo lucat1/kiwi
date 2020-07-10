@@ -47,19 +47,14 @@ typedef struct {
 } workspace;
 
 typedef struct {
-  Display *d; // display
-  int s;      // screen id
-  Window r;   // root window
+  Display *d;        // display
+  int s;             // screen id
+  Window r;          // root window
+  int width, height; // screen width and height
 
   int wscnt, curr; // workspaces count and currently shown
   workspace *ws;   // list of workspaces
 } state;
-
-typedef struct {
-  int x, y;
-  int width, height;
-  int border;
-} geometry;
 
 typedef struct {
   Mask mask;
@@ -70,6 +65,10 @@ static void setup();
 
 static workspace ws_curr();
 static workspace *ws_add();
+
+static void client_add(client *c);
+static void client_move(client *c, int x, int y);
+static void client_resize(client *c, int w, int h);
 
 static void handle_map_request(XEvent *ev);
 static void handle_button_press(XEvent *ev);
@@ -180,6 +179,15 @@ static void client_add(client *c) {
   }
 }
 
+static void client_center(client *c) {
+  int x, y;
+
+  x = (wm->width - c->width) / 2;
+  y = (wm->height - c->height) / 2;
+
+  client_move(c, x, y);
+}
+
 static client *client_from_window(Window w) {
   for (int i = 0; i < clients_len; i++) {
     if (clients[i] != NULL && clients[i]->w == w)
@@ -275,9 +283,9 @@ static void handle_new_window(Window w, XWindowAttributes *wa) {
   c->border = wa->border_width;
 
   client_add(c);
+  client_center(c);
 
-  // resize the window(needed for some applications) and map it(display)
-  XMoveResizeWindow(wm->d, c->w, c->x, c->y, c->width, c->height);
+  // map the window(show)
   XMapWindow(wm->d, c->w);
 
   // grab events
@@ -359,6 +367,9 @@ static void setup() {
   wm->wscnt = wm->curr = 0;
   wm->s = DefaultScreen(wm->d);
   wm->r = RootWindow(wm->d, wm->s);
+  int s = DefaultScreen(wm->d);
+  wm->width = DisplayWidth(wm->d, s);
+  wm->height = DisplayHeight(wm->d, s);
 
   move_cursor = XCreateFontCursor(wm->d, XC_crosshair);
   normal_cursor = XCreateFontCursor(wm->d, XC_left_ptr);
@@ -401,74 +412,3 @@ int main(void) {
 
   cleanup();
 }
-
-/* XButtonEvent start; */
-/* start.subwindow = None; */
-/* if (ev.type == KeyPress && ev.xkey.subwindow != None) { */
-
-/*   // Close window with mod+q */
-/*   if (ev.xkey.keycode == XKeysymToKeycode(wm->d, XStringToKeysym("q"))) {
- */
-/*     XDestroyWindow(wm->d, foc); */
-/*   } */
-
-/*   // Lower windows with mod+a */
-/*   else if (ev.xkey.keycode == */
-/*            XKeysymToKeycode(wm->d, XStringToKeysym("a"))) { */
-/*     XLowerWindow(wm->d, foc); */
-/*   } */
-
-/*   // Raise windows with mod+s */
-/*   else if (ev.xkey.keycode == */
-/*            XKeysymToKeycode(wm->d, XStringToKeysym("s"))) { */
-/*     XRaiseWindow(wm->d, foc); */
-/*   } */
-/* } */
-
-/* if (ev.type == KeyPress) { */
-/*   // Open simple terminal with mod+return */
-/*   if (ev.xkey.keycode == */
-/*       XKeysymToKeycode(wm->d, XStringToKeysym("Return"))) { */
-/*     system("alacritty &"); */
-/*   } */
-
-/*   // Open dmenu with mod+d */
-/*   if (ev.xkey.keycode == XKeysymToKeycode(wm->d, XStringToKeysym("d"))) {
- */
-/*     system("dmenu_run"); */
-/*   } */
-
-/*   // Close aphelia with mod+backspace */
-/*   else if (ev.xkey.keycode == */
-/*            XKeysymToKeycode(wm->d, XStringToKeysym("BackSpace"))) { */
-/*     XCloseDisplay(wm->d); */
-/*   } */
-/* } */
-
-/* } */
-
-/* if (ev.xbutton.subwindow != None) { */
-
-/*   XGetWindowAttributes(wm->d, ev.xbutton.subwindow, &attr); */
-/*   XSetInputFocus(wm->d, ev.xbutton.subwindow, RevertToParent, CurrentTime);
- */
-
-/*   start = ev.xbutton; */
-/* } else if (ev.type == MotionNotify && start.subwindow != None) { */
-
-/*   int xdiff = ev.xbutton.x_root - start.x_root; */
-/*   int ydiff = ev.xbutton.y_root - start.y_root; */
-
-/*   XMoveResizeWindow(wm->d, start.subwindow, */
-/*                     attr.x + (start.button == 1 ? xdiff : 0), */
-/*                     attr.y + (start.button == 1 ? ydiff : 0), */
-
-/*                     MAX(100, attr.width + (start.button == 3 ? xdiff : 0)),
- */
-
-/*                     MAX(50, attr.height + (start.button == 3 ? ydiff : *0)));
- */
-/* } else if (ev.type == ButtonRelease) { */
-
-/*   start.subwindow = None; */
-/* } */
