@@ -199,12 +199,14 @@ static void client_kill(client *c) { XKillClient(wm->d, c->w); }
 
 // removes the client from any leftover reference and frees the memory
 static void client_delete(client *c) {
-  int i;
+  int i, id;
   workspace *ws;
 
   for (i = 0; i < clients_len; i++)
-    if (clients[i] == c)
+    if (clients[i] == c) {
+      id = i;
       break;
+    }
 
   // replace clients coming afterwards
   for (; i < clients_len; i++)
@@ -219,9 +221,9 @@ static void client_delete(client *c) {
       ws->foc = NULL;
   }
 
+  msg("Removed client %i(%d) from memory", id, c->w);
   clients_len--;
   free(c);
-  msg("Removed client from memory");
 }
 
 static workspace *ws_curr() { return wm->ws[wm->curr]; }
