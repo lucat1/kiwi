@@ -141,10 +141,9 @@ static void client_add(client *c) {
 }
 
 static client *client_from_window(Window w) {
-  for (int i = 0; i < clients_len; i++) {
-    if (clients[i] != NULL && clients[i]->w == w)
+  for (int i = 0; i < clients_len; i++)
+    if (clients[i] && clients[i]->w == w)
       return clients[i];
-  }
 
   return NULL;
 }
@@ -200,7 +199,7 @@ static void client_kill(client *c) { XKillClient(wm->d, c->w); }
 
 // removes the client from any leftover reference and frees the memory
 static void client_delete(client *c) {
-  int i, x;
+  int i;
   workspace *ws;
 
   for (i = 0; i < clients_len; i++)
@@ -220,6 +219,7 @@ static void client_delete(client *c) {
       ws->foc = NULL;
   }
 
+  clients_len--;
   free(c);
   msg("Removed client from memory");
 }
@@ -270,10 +270,11 @@ static void handle_unmap_notify(XEvent *ev) {
   XUnmapEvent *e = &ev->xunmap;
   client *c = client_from_window(e->window);
 
-  if (c != NULL) {
+  if (c == NULL) {
     warn("Recieved UnmapNotify event for a non-managed client %d", e->window);
     return;
   }
+
   /* focus_best(c); */
   client_delete(c);
 }
