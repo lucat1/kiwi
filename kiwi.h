@@ -58,7 +58,13 @@ typedef struct {
 #define KIWI_CLIENT_EVENT "KIWI_CLIENT_EVENT"
 enum kiwi_net { KiwiClientEvent, KiwiLast };
 
-enum kiwic_cmds { KiwicClose, KiwicKill, KiwicLast };
+enum kiwic_cmds {
+  KiwicClose,
+  KiwicKill,
+  KiwicWorkspaces,
+  KiwicLast,
+};
+
 enum atoms_wm {
   WMDeleteWindow,
   WMProtocols,

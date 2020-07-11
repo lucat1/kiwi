@@ -405,8 +405,21 @@ static void handle_button_press(XEvent *ev) {
 }
 
 // TODO(for both): change focused client !!!
-static void kiwic_close(long *e) { client_close(ws_curr()->foc); }
-static void kiwic_kill(long *e) { client_kill(ws_curr()->foc); }
+static void kiwic_close(long *e) {
+  client *c = ws_curr()->foc;
+  if (c == NULL)
+    return;
+
+  client_close(c);
+}
+
+static void kiwic_kill(long *e) {
+  client *c = ws_curr()->foc;
+  if (c == NULL)
+    return;
+
+  client_kill(ws_curr()->foc);
+}
 
 static void setup() {
   wm->wscnt = wm->curr = 0;
