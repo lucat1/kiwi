@@ -16,8 +16,10 @@ static Display *d; // display
 static Window r;   // root window
 
 static cmd w_cmd = {"", KiwicLast, False, 0}; // wrong cmd; invalid
-static cmd cmds[] = {{"close", KiwicClose, False, 0},
-                     {"kill", KiwicKill, False, 0}};
+static cmd cmds[] = {
+    {"close", KiwicClose, False, 0},
+    {"kill", KiwicKill, False, 0},
+};
 
 cmd get_cmd(char *name) {
   int i;
