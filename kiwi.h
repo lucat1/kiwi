@@ -62,6 +62,7 @@ enum kiwic_cmds {
   KiwicClose,
   KiwicKill,
   KiwicWorkspaces,
+  KiwicFocusWorkspace,
   KiwicLast,
 };
 

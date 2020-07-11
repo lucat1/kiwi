@@ -37,6 +37,7 @@ static void handle_new_window(Window w, XWindowAttributes *wa);
 static void kiwic_close(long *e);
 static void kiwic_kill(long *e);
 static void kiwic_workspaces(long *e);
+static void kiwic_focus_workspace(long *e);
 
 char cfgp[MAXLEN]; // path to config file
 static state *wm;  // wm global state
@@ -61,6 +62,7 @@ static void (*kiwic_events[KiwicLast])(long *) = {
     [KiwicKill] = kiwic_kill,
 
     [KiwicWorkspaces] = kiwic_workspaces,
+    [KiwicFocusWorkspace] = kiwic_focus_workspace,
 };
 
 static int xerror(Display *d, XErrorEvent *ee) {
@@ -291,7 +293,10 @@ static void ws_delete(int ws) {
   free(wm->ws[ws]);
 }
 
-static void ws_focus(int ws) { wm->curr = ws; }
+static void ws_focus(int ws) {
+  msg("Focusing workspace %i", ws);
+  wm->curr = ws;
+}
 
 static client **clients_from_ws(int ws) {
   int i, len;
@@ -497,6 +502,15 @@ static void kiwic_workspaces(long *e) {
   if (count > wm->wscnt)
     for (i = wm->wscnt; i < count; i++)
       ws_add();
+}
+
+static void kiwic_focus_workspace(long *e) {
+  int ws = (int)e[1];
+
+  if (wm->wscnt <= ws)
+    return;
+
+  ws_focus(ws);
 }
 
 static void setup() {
