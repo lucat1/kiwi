@@ -15,8 +15,11 @@ static void setup();
 
 static workspace *ws_curr();
 static workspace *ws_add();
-static void ws_sel(int i);
+static void ws_delete(int ws);
+static void ws_focus(int ws);
+static client **clients_from_ws(int ws);
 
+static client *client_from_window();
 static void client_add(client *c);
 static void client_focus(client *c);
 static void client_move(client *c, int x, int y);
@@ -33,6 +36,7 @@ static void handle_new_window(Window w, XWindowAttributes *wa);
 
 static void kiwic_close(long *e);
 static void kiwic_kill(long *e);
+static void kiwic_workspaces(long *e);
 
 char cfgp[MAXLEN]; // path to config file
 static state *wm;  // wm global state
@@ -55,6 +59,8 @@ static void (*events[LASTEvent])(XEvent *e) = {
 static void (*kiwic_events[KiwicLast])(long *) = {
     [KiwicClose] = kiwic_close,
     [KiwicKill] = kiwic_kill,
+
+    [KiwicWorkspaces] = kiwic_workspaces,
 };
 
 static int xerror(Display *d, XErrorEvent *ee) {
@@ -119,6 +125,14 @@ static void run_autostart() {
   }
 }
 
+static client *client_from_window(Window w) {
+  for (int i = 0; i < clients_len; i++)
+    if (clients[i] && clients[i]->w == w)
+      return clients[i];
+
+  return NULL;
+}
+
 static void client_add(client *c) {
   msg("added client(id: %lu, x: %i, y: %i, w: %i, h: %i)", c->w, c->x, c->y,
       c->width, c->height);
@@ -138,14 +152,6 @@ static void client_add(client *c) {
 
   // focus it on the current workspace
   client_focus(c);
-}
-
-static client *client_from_window(Window w) {
-  for (int i = 0; i < clients_len; i++)
-    if (clients[i] && clients[i]->w == w)
-      return clients[i];
-
-  return NULL;
 }
 
 static void client_focus(client *c) {
@@ -211,6 +217,7 @@ static void client_delete(client *c) {
   // replace clients coming afterwards
   for (; i < clients_len; i++)
     clients[i] = clients[i - 1];
+  // TODO: shrink the client** with realloc?!
 
   // remove the focused reference from any workspace (if avaiable)
   for (i = 0; i < wm->wscnt; i++) {
@@ -246,10 +253,67 @@ static workspace *ws_add() {
   }
 
   wm->ws[wm->wscnt - 1] = ws;
+  msg("Added workspace %i", wm->wscnt - 1);
   return ws;
 }
 
-static void ws_sel(int i) { wm->curr = i; }
+static void ws_delete(int ws) {
+  client **cs;
+
+  if (wm->wscnt < ws) {
+    warn("Could not delete workspace %i, it does not exist");
+    return;
+  }
+
+  // first, kill any windows in the workspace
+  if ((cs = clients_from_ws(ws)) != NULL) {
+    int i;
+
+    for (i = 0; i < (int)(sizeof(client *) / sizeof(cs)); i++)
+      client_kill(cs[i]);
+
+    // we need to free the array allocated by `clients_from_ws`
+    free(clients);
+  }
+
+  // then, remove the workspace and free the memory
+  // replace workspaces coming afterwards
+  for (; ws < wm->wscnt; ws++)
+    wm->ws[ws] = wm->ws[ws - 1];
+  // TODO: shrink the workspace** with realloc?!
+
+  // if the workspace was focused, shift focus to the previous one
+  if (wm->curr == ws)
+    ws_focus(ws - 1);
+
+  msg("Removed workspace %i from memory", ws);
+  wm->wscnt--;
+  free(wm->ws[ws]);
+}
+
+static void ws_focus(int ws) { wm->curr = ws; }
+
+static client **clients_from_ws(int ws) {
+  int i, len;
+  client **cs = NULL;
+
+  for (i = 0; i < clients_len; i++)
+    if (clients[i]->ws == ws) {
+      len++;
+
+      if (cs == NULL && len == 0) {
+        if ((cs = calloc(0, sizeof(client *))) == NULL)
+          die("Cannot initialize the cs array");
+      } else {
+        if ((cs = realloc(cs, sizeof(client *) * len)) == NULL)
+          die("Cannot increase cs array");
+      }
+
+      cs[len - 1] = clients[i];
+    }
+
+  return cs;
+}
 
 static void handle_map_request(XEvent *ev) {
   static XWindowAttributes wa;
@@ -297,7 +361,7 @@ static void handle_client_message(XEvent *ev) {
     if (kiwic_events[cmd])
       kiwic_events[cmd](data);
     else
-      warn("Invalid kiwic message (command)");
+      warn("Invalid kiwic command (%li)", cmd);
   }
 
   msg("Unhandled client message: %lu", cme->message_type);
@@ -419,6 +483,20 @@ static void kiwic_kill(long *e) {
     return;
 
   client_kill(ws_curr()->foc);
+}
+
+static void kiwic_workspaces(long *e) {
+  int count = (int)e[1], i;
+  msg("Setting number of workspaces to %i", count);
+
+  // shrink the amount of workspaces if the number is lower
+  if (count < wm->wscnt)
+    for (i = count; i < wm->wscnt; i++)
+      ws_delete(i);
+
+  if (count > wm->wscnt)
+    for (i = wm->wscnt; i < count; i++)
+      ws_add();
 }
 
 static void setup() {

@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <X11/Xlib.h>
@@ -36,6 +37,7 @@ cmd get_cmd(char *name) {
 }
 
 void send_cmd(int argc, char **argv, cmd cmd) {
+  int i;
   XEvent ev;
 
   memset(&ev, 0, sizeof ev);
@@ -44,8 +46,12 @@ void send_cmd(int argc, char **argv, cmd cmd) {
   ev.xclient.message_type = XInternAtom(d, KIWI_CLIENT_EVENT, False);
   ev.xclient.format = 32;
 
-  // TODO: allow arguments to be passed
   ev.xclient.data.l[0] = cmd.cmd;
+  if (cmd.argc)
+    // fill data sets (with parsed long ints)
+    for (i = 2; i < argc; i++) {
+      ev.xclient.data.l[i - 1] = strtol(argv[i], NULL, 10);
+    }
 
   XSendEvent(d, r, False, SubstructureRedirectMask, &ev);
   XSync(d, False);
