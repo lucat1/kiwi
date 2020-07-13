@@ -21,6 +21,8 @@ static client **clients_from_ws(int ws);
 
 static client *client_from_window();
 static void client_add(client *c);
+static void client_show(client *c);
+static void client_hide(client *c);
 static void client_focus(client *c);
 static void client_move(client *c, int x, int y);
 static void client_resize(client *c, int w, int h);
@@ -136,8 +138,8 @@ static client *client_from_window(Window w) {
 }
 
 static void client_add(client *c) {
-  msg("added client(id: %lu, x: %i, y: %i, w: %i, h: %i)", c->w, c->x, c->y,
-      c->width, c->height);
+  msg("added client to workspace %i (id: %lu, x: %i, y: %i, w: %i, h: %i)",
+      c->ws, c->w, c->x, c->y, c->width, c->height);
   clients_len++;
 
   // assign the needed memory
@@ -154,6 +156,18 @@ static void client_add(client *c) {
 
   // focus it on the current workspace
   client_focus(c);
+}
+
+static void client_show(client *c) {
+  // map the window(show)
+  msg("showing window: %d", c->w);
+  XMapWindow(wm->d, c->w);
+}
+
+static void client_hide(client *c) {
+  // unmap the window(hide)
+  msg("hiding window: %d", c->w);
+  XUnmapWindow(wm->d, c->w);
 }
 
 static void client_focus(client *c) {
@@ -275,7 +289,7 @@ static void ws_delete(int ws) {
       client_kill(cs[i]);
 
     // we need to free the array allocated by `clients_from_ws`
-    free(clients);
+    free(cs);
   }
 
   // then, remove the workspace and free the memory
@@ -294,28 +308,56 @@ static void ws_delete(int ws) {
 }
 
 static void ws_focus(int ws) {
-  msg("Focusing workspace %i", ws);
+  client **cs;
+  int i;
+  msg("Focusing workspace (from)%i->%i(to)", wm->curr, ws);
+
+  if (ws == wm->curr)
+    return;
+
+  // hide previous windows
+  if ((cs = clients_from_ws(wm->curr)) != NULL) {
+    for (i = 0; i < (int)(sizeof(client *) / sizeof(cs)); i++)
+      client_hide(cs[i]);
+
+    free(cs);
+  } else
+    warn("no clients in the current ws (%p)", cs);
+
   wm->curr = ws;
+  if ((cs = clients_from_ws(wm->curr)) != NULL) {
+    for (i = 0; i < (int)(sizeof(client *) / sizeof(cs)); i++)
+      client_show(cs[i]);
+
+    free(cs);
+  } else
+    warn("no clients in the new ws (%p)", cs);
+
+  // focus the new best client
+  if (ws_curr()->foc)
+    client_focus(ws_curr()->foc);
 }
 
 static client **clients_from_ws(int ws) {
-  int i, len;
+  int i, len = 0;
   client **cs = NULL;
 
-  for (i = 0; i < clients_len; i++)
-    if (clients[i]->ws == ws) {
-      len++;
+  for (i = 0; i < clients_len; i++) {
+    msg("looking for %i, found %i", ws, clients[i]->ws);
+    if (clients[i]->ws != ws)
+      break;
 
-      if (cs == NULL && len == 0) {
-        if ((cs = calloc(0, sizeof(client *))) == NULL)
-          die("Cannot initialize the cs array");
-      } else {
-        if ((cs = realloc(cs, sizeof(client *) * len)) == NULL)
-          die("Cannot increase cs array");
-      }
-
-      cs[len - 1] = clients[i];
+    len++;
+    if (cs == NULL && len == 0) {
+      if ((cs = calloc(0, sizeof(client *))) == NULL)
+        die("Cannot initialize the cs array");
+    } else {
+      if ((cs = realloc(cs, sizeof(client *) * len)) == NULL)
+        die("Cannot increase cs array");
     }
+
+    cs[len - 1] = clients[i];
+  }
 
   return cs;
 }
@@ -385,7 +427,7 @@ static void handle_new_window(Window w, XWindowAttributes *wa) {
     die("Could not allocate memory for new client(window)");
 
   c->w = w;
-  c->ws = ws_curr()->i;
+  c->ws = wm->curr;
   c->x = wa->x;
   c->y = wa->y;
   c->width = wa->width;
@@ -394,9 +436,7 @@ static void handle_new_window(Window w, XWindowAttributes *wa) {
 
   client_add(c);
   client_center(c);
-
-  // map the window(show)
-  XMapWindow(wm->d, c->w);
+  client_show(c);
 
   // grab events
   XSelectInput(wm->d, c->w,
