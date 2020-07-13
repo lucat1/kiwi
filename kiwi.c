@@ -161,13 +161,17 @@ static void client_add(client *c) {
 static void client_show(client *c) {
   // map the window(show)
   msg("showing window: %d", c->w);
-  XMapWindow(wm->d, c->w);
+
+  c->visible = True;
+  client_move(c, c->x, c->y);
 }
 
 static void client_hide(client *c) {
   // unmap the window(hide)
   msg("hiding window: %d", c->w);
-  XUnmapWindow(wm->d, c->w);
+
+  c->visible = False;
+  client_move(c, wm->width, wm->height);
 }
 
 static void client_focus(client *c) {
@@ -192,8 +196,12 @@ static void client_center(client *c) {
 static void client_move(client *c, int x, int y) {
   XMoveWindow(wm->d, c->w, x, y);
 
-  c->x = x;
-  c->y = y;
+  // DO NOT update the coordinates in the client object
+  // when we move the window during a hidden state
+  if (c->visible) {
+    c->x = x;
+    c->y = y;
+  }
 }
 
 static void client_resize(client *c, int w, int h) {
@@ -343,9 +351,9 @@ static client **clients_from_ws(int ws) {
   client **cs = NULL;
 
   for (i = 0; i < clients_len; i++) {
-    msg("looking for %i, found %i", ws, clients[i]->ws);
+    msg("(clients_from_ws) looking for %i, found %i", ws, clients[i]->ws);
     if (clients[i]->ws != ws)
-      break;
+      continue;
 
     len++;
     if (cs == NULL && len == 0) {
@@ -427,6 +435,7 @@ static void handle_new_window(Window w, XWindowAttributes *wa) {
     die("Could not allocate memory for new client(window)");
 
   c->w = w;
+  c->visible = True;
   c->ws = wm->curr;
   c->x = wa->x;
   c->y = wa->y;
@@ -436,7 +445,9 @@ static void handle_new_window(Window w, XWindowAttributes *wa) {
 
   client_add(c);
   client_center(c);
-  client_show(c);
+
+  // finally map it in the display(map)
+  XMapWindow(wm->d, c->w);
 
   // grab events
   XSelectInput(wm->d, c->w,

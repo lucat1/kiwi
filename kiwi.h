@@ -34,6 +34,7 @@ typedef struct {
   Window w;
   int ws; // the workspace id
   int x, y, width, height, border;
+  int visible;
 } client;
 
 typedef struct {
