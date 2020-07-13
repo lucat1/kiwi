@@ -38,6 +38,11 @@ typedef struct {
 } client;
 
 typedef struct {
+  int len;     // length of the array below
+  client **cs; // array of clients
+} cs_result;
+
+typedef struct {
   int i;       // the index of the workspace
   client *foc; // the focused client(window)
 } workspace;

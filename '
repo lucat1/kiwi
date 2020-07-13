@@ -17,7 +17,7 @@ static workspace *ws_curr();
 static workspace *ws_add();
 static void ws_delete(int ws);
 static void ws_focus(int ws);
-static cs_result clients_from_ws(int ws);
+static client **clients_from_ws(int ws);
 
 static client *client_from_window();
 static void client_add(client *c);
@@ -282,8 +282,7 @@ static workspace *ws_add() {
 }
 
 static void ws_delete(int ws) {
-  cs_result res;
-  int i;
+  client **cs;
 
   if (wm->wscnt < ws) {
     warn("Could not delete workspace %i, it does not exist");
@@ -291,12 +290,14 @@ static void ws_delete(int ws) {
   }
 
   // first, kill any windows in the workspace
-  if ((res = clients_from_ws(ws)).len > 0) {
-    for (i = 0; i < res.len; i++)
-      client_kill(res.cs[i]);
+  if ((cs = clients_from_ws(ws)) != NULL) {
+    int i;
+
+    for (i = 0; i < (int)(sizeof(client *) / sizeof(cs)); i++)
+      client_kill(cs[i]);
 
     // we need to free the array allocated by `clients_from_ws`
-    free(res.cs);
+    free(cs);
   }
 
   // then, remove the workspace and free the memory
@@ -315,7 +316,7 @@ static void ws_delete(int ws) {
 }
 
 static void ws_focus(int ws) {
-  cs_result res;
+  client **cs;
   int i;
   msg("Focusing workspace (from)%i->%i(to)", wm->curr, ws);
 
@@ -323,27 +324,30 @@ static void ws_focus(int ws) {
     return;
 
   // hide previous windows
-  if ((res = clients_from_ws(wm->curr)).len > 0) {
-    for (i = 0; i < res.len; i++)
-      client_hide(res.cs[i]);
+  if ((cs = clients_from_ws(wm->curr)) != NULL) {
+    msg("test %i", sizeof(cs) / sizeof(cs[0]));
+    for (i = 0; i < (int)(sizeof(cs) / sizeof(client *)); i++)
+      client_hide(cs[i]);
 
-    free(res.cs);
-  }
+    free(cs);
+  } else
+    warn("no clients in the current ws (%p)", cs);
 
   wm->curr = ws;
-  if ((res = clients_from_ws(wm->curr)).len > 0) {
-    for (i = 0; i < res.len; i++)
-      client_show(res.cs[i]);
+  if ((cs = clients_from_ws(wm->curr)) != NULL) {
+    for (i = 0; i < (int)(sizeof(cs) / sizeof(client *)); i++)
+      client_show(cs[i]);
 
-    free(res.cs);
-  }
+    free(cs);
+  } else
+    warn("no clients in the new ws (%p)", cs);
 
   // focus the old client in the workspace if any
   if (ws_curr()->foc)
     client_focus(ws_curr()->foc);
 }
 
-static cs_result clients_from_ws(int ws) {
+static client **clients_from_ws(int ws) {
   int i, len = 0;
   client **cs = NULL;
 
@@ -353,7 +357,7 @@ static cs_result clients_from_ws(int ws) {
       continue;
 
     len++;
-    if (cs == NULL) {
+    if (cs == NULL && len == 0) {
       if ((cs = calloc(0, sizeof(client *))) == NULL)
         die("Cannot initialize the cs array");
     } else {
@@ -364,10 +368,8 @@ static cs_result clients_from_ws(int ws) {
     cs[len - 1] = clients[i];
   }
   msg("(clients_from_ws) found: %i", len);
-  return (cs_result){
-      .len = len,
-      .cs = cs,
-  };
+
+  return cs;
 }
 
 static void handle_map_request(XEvent *ev) {
