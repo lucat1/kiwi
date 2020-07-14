@@ -15,9 +15,9 @@
 #define AUTOSTART "kiwi/autostart"
 #define MINIMUM_DIM 100
 
-#define die(...) _m("FAIL", __FILE__, __LINE__, __VA_ARGS__), exit(1);
-#define warn(...) _m("WARN", __FILE__, __LINE__, __VA_ARGS__)
-#define msg(...) _m("OK", __FILE__, __LINE__, __VA_ARGS__)
+#define die(...) _m("FAIL", __func__, __LINE__, __VA_ARGS__), exit(1);
+#define warn(...) _m("WARN", __func__, __LINE__, __VA_ARGS__)
+#define msg(...) _m("OK", __func__, __LINE__, __VA_ARGS__)
 
 static void _m(const char *t, const char *f, const int l, const char *fmt,
                ...) {

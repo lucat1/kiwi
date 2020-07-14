@@ -9,6 +9,7 @@
 #include <X11/cursorfont.h>
 
 #include "kiwi.h"
+#include "vector.h"
 
 static void cleanup();
 static void setup();
@@ -141,7 +142,6 @@ static workspace *ws_add() {
   if ((ws = calloc(0, sizeof(workspace))) == NULL)
     die("Cannot allocate memory for a new workspace");
 
-  msg("REMOVE ME TEST %lu", cvector_size(wm->ws));
   ws->i = i;
   cvector_push_back(wm->ws, ws);
 
@@ -153,8 +153,8 @@ static void ws_delete(size_t ws) {
   size_t i;
   cvector_vector_type(client *) cs;
 
-  if (cvector_size(wm->ws) < (size_t)ws) {
-    warn("Could not delete workspace %i, it does not exist");
+  if (cvector_size(wm->ws) < ws) {
+    warn("Could not delete workspace %i, it does not exist", ws);
     return;
   }
 
@@ -231,14 +231,11 @@ static client *client_from_window(Window w) {
 }
 
 static void client_add(client *c) {
-  msg("adding client to workspace %i (id: %lu, x: %i, y: %i, w: %i, h: %i)",
-      c->ws, c->w, c->x, c->y, c->width, c->height);
+  msg("adding client to workspace %i(%lu) [x: %i, y: %i, w: %i, h: %i]", c->ws,
+      c->w, c->x, c->y, c->width, c->height);
 
   // add it to the array of clients
   cvector_push_back(wm->cs, c);
-
-  // focus it on the current workspace
-  client_focus(c);
 }
 
 static void client_show(client *c) {
@@ -259,6 +256,7 @@ static void client_hide(client *c) {
 
 static void client_focus(client *c) {
   workspace *ws;
+  msg("focusing %p, w: %i", c, c->w);
 
   ws = ws_curr();
   ws->foc = c;
@@ -411,8 +409,10 @@ static void handle_new_window(Window w, XWindowAttributes *wa) {
   client_add(c);
   client_center(c);
 
-  // finally map it in the display(map)
+  // map it in the display(show) and
+  // focus it on the current workspace
   XMapWindow(wm->d, c->w);
+  client_focus(c);
 
   // grab events
   XSelectInput(wm->d, c->w,
@@ -424,8 +424,6 @@ static void handle_new_window(Window w, XWindowAttributes *wa) {
   XGrabButton(wm->d, Button3, Mod4Mask, c->w, True,
               ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
               GrabModeAsync, GrabModeAsync, None, None);
-
-  client_focus(c);
 }
 
 static void handle_button_press(XEvent *ev) {
@@ -531,7 +529,6 @@ static void kiwic_focus_workspace(long *e) {
 
 static void setup() {
   // initialize vectors
-  wm->focus = 0;
   wm->ws = NULL;
   wm->cs = NULL;
 
@@ -542,7 +539,10 @@ static void setup() {
   wm->height = DisplayHeight(wm->d, s);
 
   // gather atoms
-  net_kiwi[KiwiClientEvent] = XInternAtom(wm->d, KIWI_CLIENT_EVENT, False);
+  msg("display %p ", wm->d);
+  /* net_kiwi[KiwiClientEvent] = XInternAtom(wm->d, KIWI_CLIENT_EVENT, False);
+   */
+  msg("res: %p", XInternAtom(wm->d, KIWI_CLIENT_EVENT, False));
 
   wm_atom[WMDeleteWindow] = XInternAtom(wm->d, "WM_DELETE_WINDOW", False);
   wm_atom[WMTakeFocus] = XInternAtom(wm->d, "WM_TAKE_FOCUS", False);
@@ -557,14 +557,14 @@ static void setup() {
                    ButtonPressMask | Button1Mask);
 
   // instantiate at least one workspace
+  wm->focus = 0;
   ws_add();
 
   // provide a default cursor
-  xerrorxlib = XSetErrorHandler(xerror);
+  /* xerrorxlib = XSetErrorHandler(xerror); */
 }
 
 int main(void) {
-  /* XWindowAttributes attr; */
   XEvent ev;
 
   if ((wm = calloc(0, sizeof(wm))) == NULL)
