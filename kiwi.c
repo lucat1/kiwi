@@ -15,9 +15,9 @@ static void setup();
 
 static workspace *ws_curr();
 static workspace *ws_add();
-static void ws_delete(int ws);
-static void ws_focus(int ws);
-static cs_result clients_from_ws(int ws);
+static void ws_delete(size_t ws);
+static void ws_focus(size_t ws);
+static cvector_vector_type(client *) clients_from_ws(size_t ws);
 
 static client *client_from_window();
 static void client_add(client *c);
@@ -44,8 +44,9 @@ static void kiwic_focus_workspace(long *e);
 char cfgp[MAXLEN]; // path to config file
 static state *wm;  // wm global state
 
-static int clients_len = 0; // the length of the clients array
-static client **clients; // list of available clients (wrapper around windows)
+/* static int clients_len = 0; // the length of the clients array */
+/* static client **clients; // list of available clients (wrapper around
+ * windows) */
 static config cfg = {Mod4Mask};
 static Atom wm_atom[WMLast], net_kiwi[KiwiLast];
 
@@ -86,18 +87,20 @@ static int xerror(Display *d, XErrorEvent *ee) {
 }
 
 static void cleanup() {
+  size_t i;
+
   if (wm == NULL)
     return;
 
   // free any workspace
   if (wm->ws != NULL)
-    free(wm->ws);
+    cvector_free(wm->ws);
 
-  if (clients != NULL && clients_len) {
-    for (int i = 0; i < clients_len; i++)
-      free(clients[i]);
+  if (wm->cs != NULL) {
+    for (i = 0; i < cvector_size(wm->cs); i++)
+      free(wm->cs[i]);
 
-    free(clients);
+    cvector_free(wm->cs);
   }
 
   XCloseDisplay(wm->d);
@@ -129,30 +132,110 @@ static void run_autostart() {
   }
 }
 
+static workspace *ws_curr() { return wm->ws[wm->focus]; }
+
+static workspace *ws_add() {
+  size_t i = cvector_size(wm->ws);
+  workspace *ws;
+
+  if ((ws = calloc(0, sizeof(workspace))) == NULL)
+    die("Cannot allocate memory for a new workspace");
+
+  msg("REMOVE ME TEST %lu", cvector_size(wm->ws));
+  ws->i = i;
+  cvector_push_back(wm->ws, ws);
+
+  msg("Added workspace %i", ws->i);
+  return ws;
+}
+
+static void ws_delete(size_t ws) {
+  size_t i;
+  cvector_vector_type(client *) cs;
+
+  if (cvector_size(wm->ws) < (size_t)ws) {
+    warn("Could not delete workspace %i, it does not exist");
+    return;
+  }
+
+  // first, kill any windows in the workspace
+  if ((cs = clients_from_ws(ws)) != NULL) {
+    for (i = 0; i < cvector_size(cs); i++)
+      client_kill(cs[i]);
+
+    // we need to free the array allocated by `clients_from_ws`
+    cvector_free(cs);
+  }
+
+  // if the workspace was focused, shift focus to the previous one.
+  // the previous ws will always be available as we cannot go to -1 number of ws
+  if (wm->focus == ws)
+    ws_focus(ws - 1);
+
+  msg("Removed workspace %i", ws);
+  // lastly remove the workspace from the vector and free some memory
+  cvector_erase(wm->ws, ws);
+}
+
+static void ws_focus(size_t ws) {
+  size_t i;
+  cvector_vector_type(client *) cs;
+  msg("Focusing workspace (from)%i->%i(to)", wm->focus, ws);
+
+  if (ws == wm->focus)
+    return;
+
+  // hide previous windows
+  if ((cs = clients_from_ws(wm->focus)) != NULL) {
+    for (i = 0; i < cvector_size(cs); i++)
+      client_hide(cs[i]);
+
+    cvector_free(cs);
+  }
+
+  wm->focus = ws;
+  if ((cs = clients_from_ws(wm->focus)) != NULL) {
+    for (i = 0; i < cvector_size(cs); i++)
+      client_show(cs[i]);
+
+    cvector_free(cs);
+  }
+
+  // focus the old client in the workspace if any
+  if (ws_curr()->foc)
+    client_focus(ws_curr()->foc);
+}
+
+static cvector_vector_type(client *) clients_from_ws(size_t ws) {
+  size_t i;
+  cvector_vector_type(client *) cs = NULL;
+
+  for (i = 0; i < cvector_size(wm->cs); i++) {
+    if (wm->cs[i]->ws != ws)
+      continue;
+
+    cvector_push_back(cs, wm->cs[i]);
+  }
+
+  return cs;
+}
+
 static client *client_from_window(Window w) {
-  for (int i = 0; i < clients_len; i++)
-    if (clients[i] && clients[i]->w == w)
-      return clients[i];
+  size_t i;
+
+  for (i = 0; i < cvector_size(wm->cs); i++)
+    if (wm->cs[i] && wm->cs[i]->w == w)
+      return wm->cs[i];
 
   return NULL;
 }
 
 static void client_add(client *c) {
-  msg("added client to workspace %i (id: %lu, x: %i, y: %i, w: %i, h: %i)",
+  msg("adding client to workspace %i (id: %lu, x: %i, y: %i, w: %i, h: %i)",
       c->ws, c->w, c->x, c->y, c->width, c->height);
-  clients_len++;
-
-  // assign the needed memory
-  if (clients == NULL && clients_len == 0) {
-    if ((clients = calloc(0, sizeof(client *))) == NULL)
-      die("Cannot initialize the clients array");
-  } else {
-    if ((clients = realloc(clients, sizeof(client *) * clients_len)) == NULL)
-      die("Cannot increase array of clients");
-  }
 
   // add it to the array of clients
-  clients[clients_len - 1] = c;
+  cvector_push_back(wm->cs, c);
 
   // focus it on the current workspace
   client_focus(c);
@@ -229,22 +312,17 @@ static void client_kill(client *c) { XKillClient(wm->d, c->w); }
 
 // removes the client from any leftover reference and frees the memory
 static void client_delete(client *c) {
-  int i, id;
+  size_t i, id;
   workspace *ws;
 
-  for (i = 0; i < clients_len; i++)
-    if (clients[i] == c) {
+  for (i = 0; i < cvector_size(wm->cs); i++)
+    if (wm->cs[i] == c) {
       id = i;
       break;
     }
 
-  // replace clients coming afterwards
-  for (; i < clients_len; i++)
-    clients[i] = clients[i - 1];
-  // TODO: shrink the client** with realloc?!
-
   // remove the focused reference from any workspace (if avaiable)
-  for (i = 0; i < wm->wscnt; i++) {
+  for (i = 0; i < cvector_size(wm->ws); i++) {
     ws = wm->ws[i];
 
     if (ws->foc == c)
@@ -252,122 +330,9 @@ static void client_delete(client *c) {
       ws->foc = NULL;
   }
 
-  msg("Removed client %i(%d) from memory", id, c->w);
-  clients_len--;
+  msg("Removed client %i(w: %d)", id, c->w);
+  cvector_erase(wm->cs, i);
   free(c);
-}
-
-static workspace *ws_curr() { return wm->ws[wm->curr]; }
-
-static workspace *ws_add() {
-  workspace *ws;
-  if ((ws = calloc(0, sizeof(workspace))) == NULL)
-    die("Cannot allocate memory for a new workspace");
-
-  ws->i = wm->wscnt++;
-
-  // expand the ws array in wm and add the new workspace to it
-  // NOTE: we wanna check if the array has been initialized first tough
-  //  as this might be the first workspace we add
-  if (wm->ws == NULL && (wm->ws = calloc(0, sizeof(workspace *))) == NULL) {
-    die("Cannot initialize the workspaces array");
-  } else if ((wm->ws = realloc(wm->ws, sizeof(workspace *) * wm->wscnt)) ==
-             NULL) {
-    die("Cannot increase array of workspaces");
-  }
-
-  wm->ws[wm->wscnt - 1] = ws;
-  msg("Added workspace %i", wm->wscnt - 1);
-  return ws;
-}
-
-static void ws_delete(int ws) {
-  cs_result res;
-  int i;
-
-  if (wm->wscnt < ws) {
-    warn("Could not delete workspace %i, it does not exist");
-    return;
-  }
-
-  // first, kill any windows in the workspace
-  if ((res = clients_from_ws(ws)).len > 0) {
-    for (i = 0; i < res.len; i++)
-      client_kill(res.cs[i]);
-
-    // we need to free the array allocated by `clients_from_ws`
-    free(res.cs);
-  }
-
-  // then, remove the workspace and free the memory
-  // replace workspaces coming afterwards
-  for (; ws < wm->wscnt; ws++)
-    wm->ws[ws] = wm->ws[ws - 1];
-  // TODO: shrink the workspace** with realloc?!
-
-  // if the workspace was focused, shift focus to the previous one
-  if (wm->curr == ws)
-    ws_focus(ws - 1);
-
-  msg("Removed workspace %i from memory", ws);
-  wm->wscnt--;
-  free(wm->ws[ws]);
-}
-
-static void ws_focus(int ws) {
-  cs_result res;
-  int i;
-  msg("Focusing workspace (from)%i->%i(to)", wm->curr, ws);
-
-  if (ws == wm->curr)
-    return;
-
-  // hide previous windows
-  if ((res = clients_from_ws(wm->curr)).len > 0) {
-    for (i = 0; i < res.len; i++)
-      client_hide(res.cs[i]);
-
-    free(res.cs);
-  }
-
-  wm->curr = ws;
-  if ((res = clients_from_ws(wm->curr)).len > 0) {
-    for (i = 0; i < res.len; i++)
-      client_show(res.cs[i]);
-
-    free(res.cs);
-  }
-
-  // focus the old client in the workspace if any
-  if (ws_curr()->foc)
-    client_focus(ws_curr()->foc);
-}
-
-static cs_result clients_from_ws(int ws) {
-  int i, len = 0;
-  client **cs = NULL;
-
-  for (i = 0; i < clients_len; i++) {
-    msg("(clients_from_ws) looking for %i, found %i", ws, clients[i]->ws);
-    if (clients[i]->ws != ws)
-      continue;
-
-    len++;
-    if (cs == NULL) {
-      if ((cs = calloc(0, sizeof(client *))) == NULL)
-        die("Cannot initialize the cs array");
-    } else {
-      if ((cs = realloc(cs, sizeof(client *) * len)) == NULL)
-        die("Cannot increase cs array");
-    }
-
-    cs[len - 1] = clients[i];
-  }
-  msg("(clients_from_ws) found: %i", len);
-  return (cs_result){
-      .len = len,
-      .cs = cs,
-  };
 }
 
 static void handle_map_request(XEvent *ev) {
@@ -436,7 +401,7 @@ static void handle_new_window(Window w, XWindowAttributes *wa) {
 
   c->w = w;
   c->visible = True;
-  c->ws = wm->curr;
+  c->ws = wm->focus;
   c->x = wa->x;
   c->y = wa->y;
   c->width = wa->width;
@@ -542,30 +507,34 @@ static void kiwic_kill(long *e) {
 }
 
 static void kiwic_workspaces(long *e) {
-  int count = (int)e[1], i;
+  size_t count = (size_t)e[1], len = cvector_size(wm->ws), i;
   msg("Setting number of workspaces to %i", count);
 
   // shrink the amount of workspaces if the number is lower
-  if (count < wm->wscnt)
-    for (i = count; i < wm->wscnt; i++)
+  if (count < len)
+    for (i = count; i < len; i++)
       ws_delete(i);
 
-  if (count > wm->wscnt)
-    for (i = wm->wscnt; i < count; i++)
+  if (count > len)
+    for (i = len; i < count; i++)
       ws_add();
 }
 
 static void kiwic_focus_workspace(long *e) {
-  int ws = (int)e[1];
+  size_t ws = (size_t)e[1];
 
-  if (wm->wscnt <= ws)
+  if (cvector_size(wm->ws) <= ws)
     return;
 
   ws_focus(ws);
 }
 
 static void setup() {
-  wm->wscnt = wm->curr = 0;
+  // initialize vectors
+  wm->focus = 0;
+  wm->ws = NULL;
+  wm->cs = NULL;
+
   wm->s = DefaultScreen(wm->d);
   wm->r = RootWindow(wm->d, wm->s);
   int s = DefaultScreen(wm->d);
