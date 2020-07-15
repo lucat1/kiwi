@@ -539,10 +539,7 @@ static void setup() {
   wm->height = DisplayHeight(wm->d, s);
 
   // gather atoms
-  msg("display %p ", wm->d);
-  /* net_kiwi[KiwiClientEvent] = XInternAtom(wm->d, KIWI_CLIENT_EVENT, False);
-   */
-  msg("res: %p", XInternAtom(wm->d, KIWI_CLIENT_EVENT, False));
+  net_kiwi[KiwiClientEvent] = XInternAtom(wm->d, KIWI_CLIENT_EVENT, False);
 
   wm_atom[WMDeleteWindow] = XInternAtom(wm->d, "WM_DELETE_WINDOW", False);
   wm_atom[WMTakeFocus] = XInternAtom(wm->d, "WM_TAKE_FOCUS", False);

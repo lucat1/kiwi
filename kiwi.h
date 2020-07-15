@@ -15,17 +15,17 @@
 #define AUTOSTART "kiwi/autostart"
 #define MINIMUM_DIM 100
 
-#define die(...) _m("FAIL", __func__, __LINE__, __VA_ARGS__), exit(1);
-#define warn(...) _m("WARN", __func__, __LINE__, __VA_ARGS__)
-#define msg(...) _m("OK", __func__, __LINE__, __VA_ARGS__)
+#define die(...) _m("FAIL", __func__, __FILE__, __LINE__, __VA_ARGS__), exit(1);
+#define warn(...) _m("WARN", __func__, __FILE__, __LINE__, __VA_ARGS__)
+#define msg(...) _m("OK", __func__, __FILE__, __LINE__, __VA_ARGS__)
 
-static void _m(const char *t, const char *f, const int l, const char *fmt,
-               ...) {
+static void _m(const char *t, const char *fn, const char *f, const int l,
+               const char *fmt, ...) {
   va_list args;
 
   va_start(args, fmt);
 
-  printf("[%s] (%s:%d) ", t, f, l);
+  printf("[%s] (%s in %s:%d) ", t, fn, f, l);
   vprintf(fmt, args);
   printf("\n");
 
