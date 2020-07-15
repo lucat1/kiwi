@@ -47,6 +47,8 @@ void send_cmd(int argc, char **argv, cmd cmd) {
   ev.xclient.message_type = XInternAtom(d, KIWI_CLIENT_EVENT, False);
   ev.xclient.format = 32;
 
+  msg("atom: %lu", ev.xclient.message_type);
+
   ev.xclient.data.l[0] = cmd.cmd;
   if (cmd.argc)
     // fill data sets (with parsed long ints)

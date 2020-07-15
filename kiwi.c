@@ -104,6 +104,7 @@ static void cleanup() {
     cvector_free(wm->cs);
   }
 
+  msg("Closing the display");
   XCloseDisplay(wm->d);
   free(wm);
 }
@@ -528,15 +529,13 @@ static void kiwic_focus_workspace(long *e) {
 }
 
 static void setup() {
-  // initialize vectors
-  wm->ws = NULL;
-  wm->cs = NULL;
-
   wm->s = DefaultScreen(wm->d);
   wm->r = RootWindow(wm->d, wm->s);
-  int s = DefaultScreen(wm->d);
-  wm->width = DisplayWidth(wm->d, s);
-  wm->height = DisplayHeight(wm->d, s);
+  wm->width = DisplayWidth(wm->d, wm->s);
+  wm->height = DisplayHeight(wm->d, wm->s);
+
+  // provide a default cursor
+  xerrorxlib = XSetErrorHandler(xerror);
 
   // gather atoms
   net_kiwi[KiwiClientEvent] = XInternAtom(wm->d, KIWI_CLIENT_EVENT, False);
@@ -548,6 +547,8 @@ static void setup() {
   move_cursor = XCreateFontCursor(wm->d, XC_crosshair);
   normal_cursor = XCreateFontCursor(wm->d, XC_left_ptr);
   XDefineCursor(wm->d, wm->r, normal_cursor);
+  // move the cursor to the center of the desktop
+  XWarpPointer(wm->d, None, wm->r, 0, 0, 0, 0, wm->width / 2, wm->height / 2);
 
   XSelectInput(wm->d, wm->r,
                SubstructureRedirectMask | SubstructureNotifyMask |
@@ -556,25 +557,26 @@ static void setup() {
   // instantiate at least one workspace
   wm->focus = 0;
   ws_add();
-
-  // provide a default cursor
-  /* xerrorxlib = XSetErrorHandler(xerror); */
 }
 
 int main(void) {
   XEvent ev;
 
-  if ((wm = calloc(0, sizeof(wm))) == NULL)
+  if (!(wm = calloc(0, sizeof(wm))))
     die("Could not allocate memory for the wm struct");
+
+  // initialize vectors
+  wm->ws = NULL;
+  wm->cs = NULL;
 
   // Exit if display doesn't instantiate
   if (!(wm->d = XOpenDisplay(NULL)))
     die("Could not open the Xorg display");
 
+  setup();
+
   if (find_autostart())
     run_autostart();
-
-  setup();
 
   XSync(wm->d, False);
   while (!XNextEvent(wm->d, &ev)) {
