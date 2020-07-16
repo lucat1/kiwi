@@ -10,7 +10,7 @@ all:
 	$(CC) $(CFLAGS) -o kiwic kiwic.c $(LDFLAGS)
 
 test: all
-	PATH=$$PATH:$CWD DISPLAY=:1 ./kiwi
+	PATH=$$PATH:$$CWD DISPLAY=:1 ./kiwi
 
 install: all
 	@echo installing to $(DESTDIR)$(BINDIR)

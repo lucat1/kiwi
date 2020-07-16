@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "vector.h"
+
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MOUSEMASK (PointerMotionMask | ButtonPressMask | ButtonReleaseMask)
 
@@ -13,17 +15,17 @@
 #define AUTOSTART "kiwi/autostart"
 #define MINIMUM_DIM 100
 
-#define die(...) _m("FAIL", __FILE__, __LINE__, __VA_ARGS__), exit(1);
-#define warn(...) _m("WARN", __FILE__, __LINE__, __VA_ARGS__)
-#define msg(...) _m("OK", __FILE__, __LINE__, __VA_ARGS__)
+#define die(...) _m("FAIL", __func__, __FILE__, __LINE__, __VA_ARGS__), exit(1);
+#define warn(...) _m("WARN", __func__, __FILE__, __LINE__, __VA_ARGS__)
+#define msg(...) _m("OK", __func__, __FILE__, __LINE__, __VA_ARGS__)
 
-static void _m(const char *t, const char *f, const int l, const char *fmt,
-               ...) {
+static void _m(const char *t, const char *fn, const char *f, const int l,
+               const char *fmt, ...) {
   va_list args;
 
   va_start(args, fmt);
 
-  printf("[%s] (%s:%d) ", t, f, l);
+  printf("[%s] (%s in %s:%d) ", t, fn, f, l);
   vprintf(fmt, args);
   printf("\n");
 
@@ -32,15 +34,10 @@ static void _m(const char *t, const char *f, const int l, const char *fmt,
 
 typedef struct {
   Window w;
-  int ws; // the workspace id
+  size_t ws; // the workspace id
   int x, y, width, height, border;
   int visible;
 } client;
-
-typedef struct {
-  int len;     // length of the array below
-  client **cs; // array of clients
-} cs_result;
 
 typedef struct {
   int i;       // the index of the workspace
@@ -53,8 +50,10 @@ typedef struct {
   Window r;          // root window
   int width, height; // screen width and height
 
-  int wscnt, curr; // workspaces count and currently shown
-  workspace **ws;  // list of workspaces
+  size_t focus;                        // the focused workspace
+  cvector_vector_type(workspace *) ws; // vector of workspaces
+
+  cvector_vector_type(client *) cs; // vector of clients
 } state;
 
 typedef struct {
