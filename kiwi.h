@@ -50,8 +50,8 @@ typedef struct {
   Window r;          // root window
   int width, height; // screen width and height
 
-  size_t focus; // the focused workspace
-  cvector_vector_type(workspace *) ws;
+  size_t focus;                        // the focused workspace
+  cvector_vector_type(workspace *) ws; // vector of workspaces
 
   cvector_vector_type(client *) cs; // vector of clients
 } state;

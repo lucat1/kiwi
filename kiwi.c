@@ -1,4 +1,5 @@
 #include <stdarg.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -43,7 +44,7 @@ static void kiwic_workspaces(long *e);
 static void kiwic_focus_workspace(long *e);
 
 char cfgp[MAXLEN]; // path to config file
-static state *wm;  // wm global state
+state *wm;         // wm global state
 
 /* static int clients_len = 0; // the length of the clients array */
 /* static client **clients; // list of available clients (wrapper around
@@ -507,16 +508,23 @@ static void kiwic_kill(long *e) {
 
 static void kiwic_workspaces(long *e) {
   size_t count = (size_t)e[1], len = cvector_size(wm->ws), i;
-  msg("Setting number of workspaces to %i", count);
+  if (count < 1)
+    return;
+
+  msg("Setting number of workspaces to %i(from)->%i(to)", len, count);
 
   // shrink the amount of workspaces if the number is lower
   if (count < len)
-    for (i = count; i < len; i++)
+    for (i = len; i >= count; i--) {
+      msg("removing %i", i);
       ws_delete(i);
+    }
 
   if (count > len)
     for (i = len; i < count; i++)
       ws_add();
+
+  msg("remained %i workspaces", cvector_size(wm->ws));
 }
 
 static void kiwic_focus_workspace(long *e) {
@@ -562,7 +570,7 @@ static void setup() {
 int main(void) {
   XEvent ev;
 
-  if (!(wm = calloc(0, sizeof(wm))))
+  if (!(wm = calloc(1, sizeof(state))))
     die("Could not allocate memory for the wm struct");
 
   // initialize vectors
