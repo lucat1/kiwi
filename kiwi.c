@@ -584,7 +584,7 @@ int main(void) {
 
   XSync(wm->d, False);
   while (!XNextEvent(wm->d, &ev)) {
-    msg("Received event of type: %d", ev.type);
+    /* msg("Received event of type: %d", ev.type); */
     if (events[ev.type]) {
       events[ev.type](&ev);
     }
