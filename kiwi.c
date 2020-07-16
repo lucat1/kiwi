@@ -515,16 +515,12 @@ static void kiwic_workspaces(long *e) {
 
   // shrink the amount of workspaces if the number is lower
   if (count < len)
-    for (i = len; i >= count; i--) {
-      msg("removing %i", i);
+    for (i = len; i >= count; i--)
       ws_delete(i);
-    }
 
   if (count > len)
     for (i = len; i < count; i++)
       ws_add();
-
-  msg("remained %i workspaces", cvector_size(wm->ws));
 }
 
 static void kiwic_focus_workspace(long *e) {
