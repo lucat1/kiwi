@@ -25,6 +25,7 @@ static cmd cmds[] = {
     // workspaces actions
     {"workspaces", KiwicWorkspaces, False, 1},
     {"focus_workspace", KiwicFocusWorkspace, False, 1},
+    {"send_to_workspace", KiwicSendToWorkspace, False, 1},
 };
 
 cmd get_cmd(char *name) {

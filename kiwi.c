@@ -42,6 +42,7 @@ static void kiwic_close(long *e);
 static void kiwic_kill(long *e);
 static void kiwic_workspaces(long *e);
 static void kiwic_focus_workspace(long *e);
+static void kiwic_send_to_workspace(long *e);
 
 char cfgp[MAXLEN]; // path to config file
 state *wm;         // wm global state
@@ -68,6 +69,7 @@ static void (*kiwic_events[KiwicLast])(long *) = {
 
     [KiwicWorkspaces] = kiwic_workspaces,
     [KiwicFocusWorkspace] = kiwic_focus_workspace,
+    [KiwicSendToWorkspace] = kiwic_send_to_workspace,
 };
 
 static int xerror(Display *d, XErrorEvent *ee) {
@@ -530,6 +532,21 @@ static void kiwic_focus_workspace(long *e) {
     return;
 
   ws_focus(ws);
+}
+
+static void kiwic_send_to_workspace(long *e) {
+  size_t ws = (size_t)e[1];
+  client *c;
+
+  // stop the execution if the workspace id is invalid or no client is currently
+  // focused
+  if (cvector_size(wm->ws) <= ws || (c = ws_curr()->foc) == NULL)
+    return;
+
+  msg("Moving focused client to workspace (from)%i->%i(to)", c->ws, ws);
+
+  c->ws = ws;
+  client_hide(c);
 }
 
 static void setup() {
