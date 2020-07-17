@@ -7,26 +7,39 @@
 #include "kiwi.h"
 
 typedef struct {
-  char *name;
+  char *name, *desc;
   enum kiwic_cmds cmd;
-  int config; // true or false
   int argc;
 } cmd;
 
 static Display *d; // display
 static Window r;   // root window
 
-static cmd w_cmd = {"", KiwicLast, False, 0}; // wrong cmd; invalid
+static cmd w_cmd = {"", "", KiwicLast, 0}; // wrong cmd; invalid
 static cmd cmds[] = {
     // node actions
-    {"close", KiwicClose, False, 0},
-    {"kill", KiwicKill, False, 0},
+    {"close", "Sends a close message to a window", KiwicClose, 0},
+    {"kill", "Forcefully kills a window", KiwicKill, 0},
 
     // workspaces actions
-    {"workspaces", KiwicWorkspaces, False, 1},
-    {"focus_workspace", KiwicFocusWorkspace, False, 1},
-    {"send_to_workspace", KiwicSendToWorkspace, False, 1},
+    {"workspaces", "Sets the number of workspaces available", KiwicWorkspaces,
+     1},
+    {"focus_workspace", "Focuses the given workspace", KiwicFocusWorkspace, 1},
+    {"send_to_workspace", "Sends a window to a workspace", KiwicSendToWorkspace,
+     1},
 };
+
+// prints all available commands and adds a brief description to each
+void help() {
+  int i = 0, len = sizeof(cmds) / sizeof(cmd);
+
+  printf("COMMANDS:\n\n");
+  printf("%-22s argc desc\n", "cmd");
+  for (; i < len; i++) {
+    cmd cmd = cmds[i];
+    printf("%-22s %-4i %s\n", cmd.name, cmd.argc, cmd.desc);
+  }
+}
 
 cmd get_cmd(char *name) {
   int i;
@@ -62,8 +75,11 @@ void send_cmd(int argc, char **argv, cmd cmd) {
 int main(int argc, char **argv) {
   cmd cmd;
 
-  if (argc < 2)
-    die("usage: kiwic <command> [opts]");
+  if (argc < 2) {
+    printf("usage: kiwic <COMMAND> [args]\n");
+    help();
+    exit(1);
+  }
 
   if ((cmd = get_cmd(argv[1])).cmd == w_cmd.cmd)
     die("Invalid command %s", argv[1]);
