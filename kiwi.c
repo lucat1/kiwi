@@ -28,6 +28,7 @@ static void client_hide(client *c);
 static void client_focus(client *c);
 static void client_move(client *c, int x, int y);
 static void client_resize(client *c, int w, int h);
+static void client_border(client *c, char *color);
 static void client_close(client *c);
 static void client_kill(client *c);
 static void client_delete(client *c);
@@ -296,6 +297,19 @@ static void client_resize(client *c, int w, int h) {
   c->height = MAX(h, MINIMUM_DIM);
 }
 
+static void client_border(client *c, char *color) {
+  XColor xc;
+  unsigned long xcolor = 0;
+
+  Colormap m = DefaultColormap(wm->d, wm->s);
+  if (XAllocNamedColor(wm->d, m, color, &xc, &xc))
+    xcolor = xc.pixel;
+
+  XSetWindowBorder(wm->d, c->w, xcolor);
+  XConfigureWindow(wm->d, c->w, CWBorderWidth,
+                   &(XWindowChanges){.border_width = 1});
+}
+
 static void client_close(client *c) {
   XEvent ev;
 
@@ -417,6 +431,7 @@ static void handle_new_window(Window w, XWindowAttributes *wa) {
   // focus it on the current workspace
   XMapWindow(wm->d, c->w);
   client_focus(c);
+  client_border(c, "#ffffff");
 
   // grab events
   XSelectInput(wm->d, c->w,
@@ -550,6 +565,10 @@ static void kiwic_send_to_workspace(long *e) {
 }
 
 static void setup() {
+  // initialize vectors
+  wm->ws = NULL;
+  wm->cs = NULL;
+
   wm->s = DefaultScreen(wm->d);
   wm->r = RootWindow(wm->d, wm->s);
   wm->width = DisplayWidth(wm->d, wm->s);
@@ -585,10 +604,6 @@ int main(void) {
 
   if (!(wm = calloc(1, sizeof(state))))
     die("Could not allocate memory for the wm struct");
-
-  // initialize vectors
-  wm->ws = NULL;
-  wm->cs = NULL;
 
   // Exit if display doesn't instantiate
   if (!(wm->d = XOpenDisplay(NULL)))
