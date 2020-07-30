@@ -3,9 +3,11 @@
 
 #include <xcb/xcb.h>
 
+#include "client.h"
+#include "config.h"
 #include "kiwi.h"
-
-static void subscribe(xcb_window_t w);
+#include "util.h"
+#include "vector.h"
 
 static void handle_xerror(xcb_generic_event_t *ev);
 static void handle_button(xcb_generic_event_t *ev);
@@ -20,13 +22,11 @@ static void (*events[XCB_NO_OPERATION])(xcb_generic_event_t *e) = {
     [XCB_MAP_NOTIFY] = handle_map_notify,
 };
 
-// subscribe to a subwindow's events
-static void subscribe(xcb_window_t win) {
-  msg("subscribing to window %i", win);
-  xcb_grab_button(conn, false, win, XCB_EVENT_MASK_BUTTON_PRESS,
-                  XCB_GRAB_MODE_SYNC, XCB_GRAB_MODE_ASYNC, XCB_WINDOW_NONE,
-                  XCB_CURSOR_NONE, XCB_BUTTON_INDEX_ANY, XCB_BUTTON_MASK_ANY);
-}
+// default configuration
+static config_t config = {
+    .sloppy_focus = false,
+    .border_size = 2,
+};
 
 static void handle_xerror(xcb_generic_event_t *ev) {
   // from: https://github.com/kaugm/mmwm/blob/master/mmwm.c#L2828
@@ -51,7 +51,12 @@ static void handle_map_notify(xcb_generic_event_t *ev) {
   e = (xcb_create_notify_event_t *)ev;
   msg("displaying window %i", e->window);
 
-  subscribe(e->window);
+  if (client_from_window(e->window) != NULL) {
+    warn("tried to rehandle existing window as a client");
+    return;
+  }
+
+  client_create(e->window);
 }
 
 static void clean() {

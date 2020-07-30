@@ -4,9 +4,11 @@ LDFLAGS += -lxcb
 PREFIX ?= /usr
 BINDIR ?= $(PREFIX)/bin
 CC     ?= gcc
+# SRC = $(filter-out kiwic.c, $(wildcard *.c))
+SRC = util.c kiwi.c client.c workspace.c
 
 all:
-	$(CC) $(CFLAGS) -o kiwi kiwi.c  $(LDFLAGS)
+	$(CC) $(CFLAGS) -o kiwi $(SRC) $(LDFLAGS)
 	# $(CC) $(CFLAGS) -o kiwic kiwic.c $(LDFLAGS)
 
 install: all
