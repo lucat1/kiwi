@@ -16,6 +16,12 @@ static void handle_map_notify(xcb_generic_event_t *ev);
 xcb_connection_t *conn;
 xcb_screen_t *scr;
 
+// default configuration
+static config_t config = {
+    .sloppy_focus = false,
+    .border_size = 2,
+};
+
 static void (*events[XCB_NO_OPERATION])(xcb_generic_event_t *e) = {
     [0] = handle_xerror,
     [XCB_BUTTON_PRESS] = handle_button,
