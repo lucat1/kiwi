@@ -77,6 +77,8 @@ static void loop() {
     if (xcb_connection_has_error(conn))
       die("X11 connection error");
 
+    // some may say it's better to use `xcb_poll_for_event`.
+    // polling should have worse performance, but may be snappier idk.
     if ((ev = xcb_wait_for_event(conn)) != NULL) {
       type = CLEANMASK(ev->response_type);
 
