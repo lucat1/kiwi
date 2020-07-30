@@ -14,8 +14,8 @@
 #define die(...) _m("FAIL", __func__, __FILE__, __LINE__, __VA_ARGS__), exit(1);
 #define warn(...) _m("WARN", __func__, __FILE__, __LINE__, __VA_ARGS__)
 
-#if DEBUG
 static char *xcb_event_str(xcb_generic_event_t *ev) {
+#if DEBUG
   switch (CLEANMASK(ev->response_type)) {
   case XCB_KEY_PRESS:
     return "XCB_KEY_PRESS";
@@ -68,8 +68,10 @@ static char *xcb_event_str(xcb_generic_event_t *ev) {
   default:
     return "undefined event";
   }
-}
+#else
+  return "";
 #endif
+}
 
 // silence debug messages on production
 #if DEBUG
