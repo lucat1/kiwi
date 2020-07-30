@@ -7,12 +7,12 @@
 #include "workspace.h"
 
 // array of all open clients
-cvector_vector_type(client_t *) clients;
+vec_t(client_t *) clients;
 
 client_t *client_from_window(xcb_window_t win) {
   size_t i;
 
-  for (i = 0; i < cvector_size(clients); i++)
+  for (i = 0; i < vec_size(clients); i++)
     if (clients[i] && clients[i]->win == win)
       return clients[i];
 
@@ -38,7 +38,7 @@ void client_create(xcb_window_t win) {
   free(g);
 
   // add it to the array of clients
-  cvector_push_back(clients, c);
+  vec_push(clients, c);
   msg("added client(%i) to workspace %i [x: %i, y: %i, w: %i, h: %i]", c->win,
       c->ws, c->x, c->y, c->width, c->height);
 

@@ -1,6 +1,7 @@
 #ifndef CLIENT_H
 #define CLIENT_H
 
+#include "vector.h"
 #include <xcb/xcb.h>
 
 typedef struct {
@@ -10,6 +11,8 @@ typedef struct {
   int x, y;          // window position
   int width, height; // window sizes
 } client_t;
+
+vec_t(client_t *) clients;
 
 client_t *client_from_window(xcb_window_t win);
 void client_create(xcb_window_t win);

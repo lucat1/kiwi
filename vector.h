@@ -1,5 +1,7 @@
 /**
  * The MIT License (MIT)
+ *
+ * Copyright (c) 2020 Luca Tagliavini
  * Copyright (c) 2015 Evan Teran
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -20,26 +22,26 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-#ifndef CVECTOR_H_
-#define CVECTOR_H_
+
+#ifndef VEC_H_
+#define VEC_H_
 
 #include <assert.h> /* for assert */
 #include <stddef.h> /* for size_t */
 #include <stdlib.h> /* for malloc/realloc/free */
 
 /**
- * @brief cvector_vector_type - The vector type used in this library
+ * @brief vec_t - The vector type used in this library
  */
-#define cvector_vector_type(type) type *
+#define vec_t(type) type *
 
 /**
- * @brief cvector_set_capacity - For internal use, sets the capacity variable of
- * the vector
+ * @brief vec_set_capacity - For internal use, set capacity variable.
  * @param vec - the vector
  * @param size - the new capacity to set
  * @return void
  */
-#define cvector_set_capacity(vec, size)                                        \
+#define vec_set_capacity(vec, size)                                            \
   do {                                                                         \
     if (vec) {                                                                 \
       ((size_t *)(vec))[-1] = (size);                                          \
@@ -47,13 +49,12 @@
   } while (0)
 
 /**
- * @brief cvector_set_size - For internal use, sets the size variable of the
- * vector
+ * @brief vec_set_size - For internal use, sets the size variable of the vector
  * @param vec - the vector
  * @param size - the new capacity to set
  * @return void
  */
-#define cvector_set_size(vec, size)                                            \
+#define vec_set_size(vec, size)                                                \
   do {                                                                         \
     if (vec) {                                                                 \
       ((size_t *)(vec))[-2] = (size);                                          \
@@ -61,87 +62,86 @@
   } while (0)
 
 /**
- * @brief cvector_capacity - gets the current capacity of the vector
+ * @brief vec_capacity - gets the current capacity of the vector
  * @param vec - the vector
  * @return the capacity as a size_t
  */
-#define cvector_capacity(vec) ((vec) ? ((size_t *)(vec))[-1] : (size_t)0)
+#define vec_capacity(vec) ((vec) ? ((size_t *)(vec))[-1] : (size_t)0)
 
 /**
- * @brief cvector_size - gets the current size of the vector
+ * @brief vec_size - gets the current size of the vector
  * @param vec - the vector
  * @return the size as a size_t
  */
-#define cvector_size(vec) ((vec) ? ((size_t *)(vec))[-2] : (size_t)0)
+#define vec_size(vec) ((vec) ? ((size_t *)(vec))[-2] : (size_t)0)
 
 /**
- * @brief cvector_empty - returns non-zero if the vector is empty
+ * @brief vec_empty - returns non-zero if the vector is empty
  * @param vec - the vector
  * @return non-zero if empty, zero if non-empty
  */
-#define cvector_empty(vec) (cvector_size(vec) == 0)
+#define vec_empty(vec) (vec_size(vec) == 0)
 
 /**
- * @brief cvector_grow - For internal use, ensures that the vector is at least
- * <count> elements big
+ * @brief vec_grow - For internal use, ensure that the vector is >= <count>.
  * @param vec - the vector
  * @param size - the new capacity to set
  * @return void
  */
-#define cvector_grow(vec, count)                                               \
+#define vec_grow(vec, count)                                                   \
   do {                                                                         \
-    const size_t __sz = (count) * sizeof(*(vec)) + (sizeof(size_t) * 2);       \
+    const size_t vec__sz = (count) * sizeof(*(vec)) + (sizeof(size_t) * 2);    \
     if (!(vec)) {                                                              \
-      size_t *__p = malloc(__sz);                                              \
-      assert(__p);                                                             \
-      (vec) = (void *)(&__p[2]);                                               \
-      cvector_set_capacity((vec), (count));                                    \
-      cvector_set_size((vec), 0);                                              \
+      size_t *vec__p = malloc(vec__sz);                                        \
+      assert(vec__p);                                                          \
+      (vec) = (void *)(&vec__p[2]);                                            \
+      vec_set_capacity((vec), (count));                                        \
+      vec_set_size((vec), 0);                                                  \
     } else {                                                                   \
-      size_t *__p1 = &((size_t *)(vec))[-2];                                   \
-      size_t *__p2 = realloc(__p1, (__sz));                                    \
-      assert(__p2);                                                            \
-      (vec) = (void *)(&__p2[2]);                                              \
-      cvector_set_capacity((vec), (count));                                    \
+      size_t *vec__p1 = &((size_t *)(vec))[-2];                                \
+      size_t *vec__p2 = realloc(vec__p1, (vec__sz));                           \
+      assert(vec__p2);                                                         \
+      (vec) = (void *)(&vec__p2[2]);                                           \
+      vec_set_capacity((vec), (count));                                        \
     }                                                                          \
   } while (0)
 
 /**
- * @brief cvector_pop_back - removes the last element from the vector
+ * @brief vec_pop - removes the last element from the vector
  * @param vec - the vector
  * @return void
  */
-#define cvector_pop_back(vec)                                                  \
+#define vec_pop(vec)                                                           \
   do {                                                                         \
-    cvector_set_size((vec), cvector_size(vec) - 1);                            \
+    vec_set_size((vec), vec_size(vec) - 1);                                    \
   } while (0)
 
 /**
- * @brief cvector_erase - removes the element at index i from the vector
+ * @brief vec_erase - removes the element at index i from the vector
  * @param vec - the vector
  * @param i - index of element to remove
  * @return void
  */
-#define cvector_erase(vec, i)                                                  \
+#define vec_erase(vec, i)                                                      \
   do {                                                                         \
     if (vec) {                                                                 \
-      const size_t __sz = cvector_size(vec);                                   \
-      if ((i) < __sz) {                                                        \
-        cvector_set_size((vec), __sz - 1);                                     \
-        size_t __x;                                                            \
-        for (__x = (i); __x < (__sz - 1); ++__x) {                             \
-          (vec)[__x] = (vec)[__x + 1];                                         \
+      const size_t vec__sz = vec_size(vec);                                    \
+      if ((i) < vec__sz) {                                                     \
+        vec_set_size((vec), vec__sz - 1);                                      \
+        size_t vec__x;                                                         \
+        for (vec__x = (i); vec__x < (vec__sz - 1); ++vec__x) {                 \
+          (vec)[vec__x] = (vec)[vec__x + 1];                                   \
         }                                                                      \
       }                                                                        \
     }                                                                          \
   } while (0)
 
 /**
- * @brief cvector_free - frees all memory associated with the vector
+ * @brief vec_free - frees all memory associated with the vector
  * @param vec - the vector
  * @return void
  */
-#define cvector_free(vec)                                                      \
+#define vec_free(vec)                                                          \
   do {                                                                         \
     if (vec) {                                                                 \
       size_t *p1 = &((size_t *)(vec))[-2];                                     \
@@ -150,57 +150,26 @@
   } while (0)
 
 /**
- * @brief cvector_begin - returns an iterator to first element of the vector
- * @param vec - the vector
- * @return a pointer to the first element (or NULL)
- */
-#define cvector_begin(vec) (vec)
-
-/**
- * @brief cvector_end - returns an iterator to one past the last element of the
- * vector
+ * @brief vec_end - returns an iterator to one past the last element
  * @param vec - the vector
  * @return a pointer to one past the last element (or NULL)
  */
-#define cvector_end(vec) ((vec) ? &((vec)[cvector_size(vec)]) : NULL)
-
-/* user request to use logarithmic growth algorithm */
-#ifdef CVECTOR_LOGARITHMIC_GROWTH
+#define vec_end(vec) ((vec) ? &((vec)[vec_size(vec)]) : NULL)
 
 /**
- * @brief cvector_push_back - adds an element to the end of the vector
+ * @brief vec_push - adds an element to the end of the vector
  * @param vec - the vector
  * @param value - the value to add
  * @return void
  */
-#define cvector_push_back(vec, value)                                          \
+#define vec_push(vec, value)                                                   \
   do {                                                                         \
-    size_t __cap = cvector_capacity(vec);                                      \
-    if (__cap <= cvector_size(vec)) {                                          \
-      cvector_grow((vec), !__cap ? __cap + 1 : __cap * 2);                     \
+    size_t vec__cap = vec_capacity(vec);                                       \
+    if (vec__cap <= vec_size(vec)) {                                           \
+      vec_grow((vec), !vec__cap ? vec__cap + 1 : vec__cap * 2);                \
     }                                                                          \
-    vec[cvector_size(vec)] = (value);                                          \
-    cvector_set_size((vec), cvector_size(vec) + 1);                            \
+    vec[vec_size(vec)] = (value);                                              \
+    vec_set_size((vec), vec_size(vec) + 1);                                    \
   } while (0)
 
-#else
-
-/**
- * @brief cvector_push_back - adds an element to the end of the vector
- * @param vec - the vector
- * @param value - the value to add
- * @return void
- */
-#define cvector_push_back(vec, value)                                          \
-  do {                                                                         \
-    size_t __cap = cvector_capacity(vec);                                      \
-    if (__cap <= cvector_size(vec)) {                                          \
-      cvector_grow((vec), __cap + 1);                                          \
-    }                                                                          \
-    vec[cvector_size(vec)] = (value);                                          \
-    cvector_set_size((vec), cvector_size(vec) + 1);                            \
-  } while (0)
-
-#endif /* CVECTOR_LOGARITHMIC_GROWTH */
-
-#endif /* CVECTOR_H_ */
+#endif /* VEC_H_ */
