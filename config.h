@@ -7,6 +7,8 @@
 #include <xcb/xcb.h>
 
 typedef struct {
+  int desktops; // amount of desktops to create upon initialization
+
   vec_t(int) mouse_focus; // buttons that shift focus to another window
   int sloppy_focus;       // sloppy focus aka focus follows mouse
 

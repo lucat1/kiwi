@@ -9,6 +9,7 @@ int default_mouse_focus[] = {
 };
 
 config_t config = {
+    .desktops = 4,
     .mouse_focus = default_mouse_focus,
     .sloppy_focus = false,
     .border_size = 2,

@@ -20,30 +20,33 @@ client_t *client_from_window(xcb_window_t win) {
 }
 
 void client_create(xcb_window_t win) {
-  client_t *c;
+  client_t *client;
 
-  c = calloc(1, sizeof(client_t));
-  if (c == NULL)
+  client = calloc(1, sizeof(client_t));
+  if (client == NULL)
     die("could not allocate memory for new client");
 
-  c->window = win;
-  c->desktop = active_desktop;
+  client->window = win;
+  client->desktop = active_desktop;
 
   // gather the geometry for the window
-  xcb_get_geometry_reply_t *g = xcb_gather_geometry(c->window);
-  c->x = g->x;
-  c->y = g->y;
-  c->width = g->width;
-  c->height = g->height;
+  xcb_get_geometry_reply_t *g = xcb_gather_geometry(client->window);
+  client->x = g->x;
+  client->y = g->y;
+  client->width = g->width;
+  client->height = g->height;
   free(g);
 
   // add it to the array of clients
-  vec_push(clients, c);
-  msg("added client(%i) to desktop %i [x: %i, y: %i, w: %i, h: %i]", c->window,
-      c->desktop, c->x, c->y, c->width, c->height);
+  vec_push(clients, client);
+  msg("added client(%i) to desktop %i [x: %i, y: %i, w: %i, h: %i]",
+      client->window, client->desktop, client->x, client->y, client->width,
+      client->height);
+
+  client_focus(client);
 
   // add event listeners
-  xcb_grab_button(conn, false, c->window, XCB_EVENT_MASK_BUTTON_PRESS,
+  xcb_grab_button(conn, false, client->window, XCB_EVENT_MASK_BUTTON_PRESS,
                   XCB_GRAB_MODE_SYNC, XCB_GRAB_MODE_ASYNC, XCB_WINDOW_NONE,
                   XCB_CURSOR_NONE, XCB_BUTTON_INDEX_ANY, XCB_BUTTON_MASK_ANY);
 }

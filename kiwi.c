@@ -41,7 +41,7 @@ static void handle_button(xcb_generic_event_t *ev) {
     return;
   }
 
-  // focus the window on left click
+  // focus the window when perssing the configured button
   if (desktop_curr->focus != c)
     for (i = 0; i < vec_size(config.mouse_focus); i++)
       if (e->detail == config.mouse_focus[i])
@@ -99,6 +99,10 @@ static void setup() {
     vec_push(mouse_focus, default_mouse_focus[i]);
 
   config.mouse_focus = mouse_focus;
+
+  // setup the requested number of desktops
+  for (i = 0; i < (size_t)config.desktops; i++)
+    desktop_add();
 }
 
 static void loop() {
