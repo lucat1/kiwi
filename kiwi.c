@@ -5,6 +5,7 @@
 
 #include "client.h"
 #include "config.h"
+#include "desktop.h"
 #include "kiwi.h"
 #include "util.h"
 #include "vec.h"
@@ -31,13 +32,24 @@ static void handle_xerror(xcb_generic_event_t *ev) {
 
 static void handle_button(xcb_generic_event_t *ev) {
   xcb_button_press_event_t *e;
+  client_t *c;
+
   e = (xcb_button_press_event_t *)ev;
+  if ((c = client_from_window(e->event)) == NULL) {
+    warn("button click on unmanaged window");
+    return;
+  }
+
+  if (desktop_curr->focus != c)
+    client_focus(c);
 
   msg("button %i pressed", e->detail);
 
   // propagate the button clicks
   xcb_allow_events(conn, XCB_ALLOW_REPLAY_POINTER, e->time);
   xcb_flush(conn);
+
+  // grab the button if the user is about to resize the window
 }
 
 static void handle_map_notify(xcb_generic_event_t *ev) {

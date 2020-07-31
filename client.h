@@ -5,8 +5,8 @@
 #include <xcb/xcb.h>
 
 typedef struct {
-  int ws;           // the workspace the client belongs to
-  xcb_window_t win; // the window for this client
+  int desktop;         // the desktop the client belongs to
+  xcb_window_t window; // the window for this client
 
   int x, y;          // window position
   int width, height; // window sizes

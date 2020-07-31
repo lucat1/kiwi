@@ -27,5 +27,6 @@ void _m(const char *t, const char *fn, const char *f, const int l,
 void UNUSED(void *dummy, ...);
 xcb_get_geometry_reply_t *xcb_gather_geometry(xcb_window_t win);
 char *xcb_event_str(xcb_generic_event_t *ev);
+void xcb_raise_window(xcb_connection_t *con, xcb_window_t win);
 
 #endif // UTIL_H

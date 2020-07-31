@@ -11,7 +11,7 @@ make
 
 D=${D:-80}
 
-Xephyr -screen 800x600 :$D&
+Xephyr -screen 1600x800 :$D&
 sleep 1
 
 export DISPLAY=:$D

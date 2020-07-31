@@ -19,7 +19,10 @@ void _m(const char *t, const char *fn, const char *f, const int l,
 
 void UNUSED(void *dummy, ...) {}
 
-/* wrapper to get window geometry */
+// all functions below are taken from the mmwm project.
+// thanks a lot.
+// source: https://github.com/kaugm/mmwm
+
 xcb_get_geometry_reply_t *xcb_gather_geometry(xcb_window_t win) {
   xcb_get_geometry_reply_t *r;
   r = xcb_get_geometry_reply(conn, xcb_get_geometry(conn, win), NULL);
@@ -86,4 +89,10 @@ char *xcb_event_str(xcb_generic_event_t *ev) {
 #else
   return "";
 #endif // DEBUG
+}
+
+inline void xcb_raise_window(xcb_connection_t *con, xcb_window_t win) {
+  unsigned int arg[1] = {XCB_STACK_MODE_ABOVE};
+
+  xcb_configure_window(con, win, XCB_CONFIG_WINDOW_STACK_MODE, arg);
 }
