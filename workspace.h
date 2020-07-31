@@ -2,7 +2,7 @@
 #define WORKSPACE_H
 
 #include "client.h"
-#include "vector.h"
+#include "vec.h"
 
 typedef struct {
 } workspace_t;

@@ -7,7 +7,7 @@
 #include "config.h"
 #include "kiwi.h"
 #include "util.h"
-#include "vector.h"
+#include "vec.h"
 
 static void handle_xerror(xcb_generic_event_t *ev);
 static void handle_button(xcb_generic_event_t *ev);
@@ -20,12 +20,6 @@ static void (*events[XCB_NO_OPERATION])(xcb_generic_event_t *e) = {
     [0] = handle_xerror,
     [XCB_BUTTON_PRESS] = handle_button,
     [XCB_MAP_NOTIFY] = handle_map_notify,
-};
-
-// default configuration
-static config_t config = {
-    .sloppy_focus = false,
-    .border_size = 2,
 };
 
 static void handle_xerror(xcb_generic_event_t *ev) {

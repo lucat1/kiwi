@@ -1,7 +1,7 @@
 #ifndef CLIENT_H
 #define CLIENT_H
 
-#include "vector.h"
+#include "vec.h"
 #include <xcb/xcb.h>
 
 typedef struct {

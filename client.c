@@ -3,7 +3,7 @@
 #include "client.h"
 #include "kiwi.h"
 #include "util.h"
-#include "vector.h"
+#include "vec.h"
 #include "workspace.h"
 
 // array of all open clients
