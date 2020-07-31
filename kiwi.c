@@ -42,9 +42,10 @@ static void handle_button(xcb_generic_event_t *ev) {
   }
 
   // focus the window on left click
-  for (i = 0; i < vec_size(config.mouse_focus); i++)
-    if (e->detail == config.mouse_focus[i] && desktop_curr->focus != c)
-      client_focus(c);
+  if (desktop_curr->focus != c)
+    for (i = 0; i < vec_size(config.mouse_focus); i++)
+      if (e->detail == config.mouse_focus[i])
+        client_focus(c);
 
   msg("button %i pressed", e->detail);
 
