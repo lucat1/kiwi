@@ -31,6 +31,7 @@ static void handle_xerror(xcb_generic_event_t *ev) {
 }
 
 static void handle_button(xcb_generic_event_t *ev) {
+  size_t i;
   xcb_button_press_event_t *e;
   client_t *c;
 
@@ -41,8 +42,9 @@ static void handle_button(xcb_generic_event_t *ev) {
   }
 
   // focus the window on left click
-  if (e->detail == XCB_BUTTON_INDEX_1 && desktop_curr->focus != c)
-    client_focus(c);
+  for (i = 0; i < vec_size(config.mouse_focus); i++)
+    if (e->detail == config.mouse_focus[i] && desktop_curr->focus != c)
+      client_focus(c);
 
   msg("button %i pressed", e->detail);
 
@@ -67,17 +69,35 @@ static void handle_map_notify(xcb_generic_event_t *ev) {
 }
 
 static void clean() {
+  if (config.mouse_focus != NULL)
+    free(config.mouse_focus);
+
+  if (clients != NULL)
+    free(clients);
+
+  if (desktops != NULL)
+    free(desktops);
+
   if (conn != NULL)
     xcb_disconnect(conn);
 }
 
 static void setup() {
+  size_t i;
+  vec_t(int) mouse_focus;
+
   scr = xcb_setup_roots_iterator(xcb_get_setup(conn)).data;
 
   // recieve updates on newly created windows
   static const uint32_t values[] = {XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY};
   xcb_change_window_attributes_checked(conn, scr->root, XCB_CW_EVENT_MASK,
                                        values);
+
+  // setup the default configuration
+  for (i = 0; i < sizeof(default_mouse_focus) / sizeof(int); i++)
+    vec_push(mouse_focus, default_mouse_focus[i]);
+
+  config.mouse_focus = mouse_focus;
 }
 
 static void loop() {
