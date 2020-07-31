@@ -40,7 +40,8 @@ static void handle_button(xcb_generic_event_t *ev) {
     return;
   }
 
-  if (desktop_curr->focus != c)
+  // focus the window on left click
+  if (e->detail == XCB_BUTTON_INDEX_1 && desktop_curr->focus != c)
     client_focus(c);
 
   msg("button %i pressed", e->detail);
