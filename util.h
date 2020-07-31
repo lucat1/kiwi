@@ -9,6 +9,8 @@
 #define DEBUG 1
 
 #define CLEANMASK(m) ((m & ~0x80))
+#define XCB_RESIZE XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT
+#define XCB_MOVE XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y
 #define true 1
 #define false 0
 
@@ -27,6 +29,7 @@ void _m(const char *t, const char *fn, const char *f, const int l,
 void UNUSED(void *dummy, ...);
 xcb_get_geometry_reply_t *xcb_gather_geometry(xcb_window_t win);
 char *xcb_event_str(xcb_generic_event_t *ev);
+void xcb_raise_window(xcb_connection_t *con, xcb_window_t win);
 void xcb_raise_window(xcb_connection_t *con, xcb_window_t win);
 
 #endif // UTIL_H

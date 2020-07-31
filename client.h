@@ -14,8 +14,8 @@ typedef struct {
 
 vec_t(client_t *) clients;
 
-client_t *client_from_window(xcb_window_t win);
-void client_create(xcb_window_t win);
+client_t *client_from_window(xcb_window_t window);
+void client_create(xcb_window_t window);
 void client_show(client_t *c);
 void client_hide(client_t *c);
 void client_focus(client_t *c);
