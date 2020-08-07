@@ -164,7 +164,7 @@ static void clean() {
 
 static void setup() {
   size_t i;
-  vec_t(int) mouse_focus;
+  vec_t(int) mouse_focus = NULL;
 
   scr = xcb_setup_roots_iterator(xcb_get_setup(conn)).data;
 

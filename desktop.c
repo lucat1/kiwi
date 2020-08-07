@@ -1,7 +1,7 @@
 #include "desktop.h"
 #include "util.h"
 
-vec_t(desktop_t *) desktops;
+vec_t(desktop_t *) desktops = NULL;
 size_t active_desktop = 0;
 
 void desktop_add() {

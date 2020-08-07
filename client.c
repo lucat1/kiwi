@@ -7,7 +7,7 @@
 #include "vec.h"
 
 // array of all open clients
-vec_t(client_t *) clients;
+vec_t(client_t *) clients = NULL;
 
 client_t *client_from_window(xcb_window_t win) {
   size_t i;

@@ -5,7 +5,8 @@
 // default configuration
 int default_mouse_focus[] = {
     XCB_BUTTON_INDEX_1, /* left click */
-    XCB_BUTTON_INDEX_3  /* right click */
+    XCB_BUTTON_INDEX_3, /* right click */
+    0                   /* array delimiter */
 };
 
 config_t config = {
