@@ -5,7 +5,7 @@
 
 #include "config.h"
 
-xcb_connection_t *conn;
-xcb_screen_t *scr;
+extern xcb_connection_t *conn;
+extern xcb_screen_t *scr;
 
 #endif // KIWI_H

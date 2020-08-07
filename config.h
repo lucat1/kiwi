@@ -15,7 +15,7 @@ typedef struct {
   int border_size; // the widths of the window's border
 } config_t;
 
-config_t config;
-int default_mouse_focus[5];
+extern config_t config;
+extern int default_mouse_focus[5];
 
-#endif
+#endif // CONFIG_H

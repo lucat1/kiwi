@@ -9,8 +9,8 @@ typedef struct {
   client_t *focus; // the focused client
 } desktop_t;
 
-vec_t(desktop_t *) desktops;
-size_t active_desktop;
+extern vec_t(desktop_t *) desktops;
+extern size_t active_desktop;
 
 #define desktop_curr desktops[active_desktop]
 void desktop_add();

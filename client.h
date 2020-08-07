@@ -12,7 +12,7 @@ typedef struct {
   int width, height; // window sizes
 } client_t;
 
-vec_t(client_t *) clients;
+extern vec_t(client_t *) clients;
 
 client_t *client_from_window(xcb_window_t window);
 void client_create(xcb_window_t window);
