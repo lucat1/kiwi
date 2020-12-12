@@ -1,4 +1,6 @@
 Inspirations:
   - berry
+  - bspwm (xcb trickery and functions, namely check_connection)
   - sowm
   - swm (xcb)
+  - xwm (started as a fork)
