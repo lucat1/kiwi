@@ -4,6 +4,7 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include <xcb/xcb.h>
+#include <xcb/xcb_keysyms.h>
 
 // info print
 #ifdef DEBUG
@@ -22,6 +23,10 @@ void _print(const char *t, const char *fmt, ...);
 #define msg(...) _print("OK", __VA_ARGS__)
 #endif // DEBUG
 
+#define SIZEOF(k) (int)(sizeof(k) / sizeof(*k))
+
 bool xcb_has_error(xcb_connection_t *dpy);
+xcb_keycode_t *xcb_get_keycode(xcb_connection_t *dpy, xcb_keysym_t keysym);
+xcb_keysym_t xcb_get_keysym(xcb_connection_t *dpy, xcb_keycode_t keycode);
 
 #endif // UTIL_H

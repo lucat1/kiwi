@@ -17,10 +17,6 @@ typedef struct {
   void (*func)(xcb_generic_event_t *ev);
 } handler_func_t;
 
-/* convert keycode to keysym and back */
-static xcb_keycode_t *xcb_get_keycodes(xcb_keysym_t keysym);
-static xcb_keysym_t xcb_get_keysym(xcb_keycode_t keycode);
-
 /* user defined command actions */
 static void killclient(char **com);
 static void spawn(char **com);

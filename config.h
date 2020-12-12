@@ -28,7 +28,7 @@
  * be terminated by a NULL pointer.
  */
 
-const int desktops = 5;
+#define desktops 5
 
 static char *termcmd[] = {"st", NULL};
 static char *menucmd[] = {"dmenu_run", NULL};
