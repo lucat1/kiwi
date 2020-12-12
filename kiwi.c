@@ -1,6 +1,8 @@
 /* See LICENSE file for license details. */
 #include "kiwi.h"
 #include "config.h"
+#include "data.h"
+#include "util.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,49 +17,16 @@
    XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_BUTTON_PRESS)
 #define UNUSED(x) (void)(x)
 
-static xcb_connection_t *dpy;
-static xcb_screen_t *scre;
+/* static desktop_t kiwi_desktops[desktops]; */
+
+static xcb_connection_t *dpy; // the X display
+static xcb_screen_t *scr;
+
+// below is stuff to refactor
 static xcb_window_t win, focused, hovered;
 static uint32_t values[3];
 static uint32_t min_x = WINDOW_MIN_X;
 static uint32_t min_y = WINDOW_MIN_Y;
-
-// ty bspwm
-bool check_connection(xcb_connection_t *dpy) {
-  int xerr;
-  if ((xerr = xcb_connection_has_error(dpy)) != 0) {
-    printf("The server closed the connection: ");
-    switch (xerr) {
-    case XCB_CONN_ERROR:
-      printf("socket, pipe or stream error.\n");
-      break;
-    case XCB_CONN_CLOSED_EXT_NOTSUPPORTED:
-      printf("unsupported extension.\n");
-      break;
-    case XCB_CONN_CLOSED_MEM_INSUFFICIENT:
-      printf("not enough memory.\n");
-      break;
-    case XCB_CONN_CLOSED_REQ_LEN_EXCEED:
-      printf("request length exceeded.\n");
-      break;
-    case XCB_CONN_CLOSED_PARSE_ERR:
-      printf("can't parse display string.\n");
-      break;
-    case XCB_CONN_CLOSED_INVALID_SCREEN:
-      printf("invalid screen.\n");
-      break;
-    case XCB_CONN_CLOSED_FDPASSING_FAILED:
-      printf("failed to pass FD.\n");
-      break;
-    default:
-      printf("unknown error.\n");
-      break;
-    }
-    return false;
-  } else {
-    return true;
-  }
-}
 
 static void killclient(char **com) {
   UNUSED(com);
@@ -74,14 +43,14 @@ static void closewm(char **com) {
 static void spawn(char **com) {
   if (fork() == 0) {
     if (dpy != NULL) {
-      close(scre->root);
+      close(scr->root);
     }
     setsid();
     if (fork() != 0) {
-      _exit(0);
+      exit(0);
     }
     execvp((char *)com[0], (char **)com);
-    _exit(0);
+    exit(0);
   }
   wait(NULL);
 }
@@ -95,7 +64,7 @@ static void handleButtonPress(xcb_generic_event_t *ev) {
   xcb_allow_events(dpy, XCB_ALLOW_REPLAY_POINTER, e->time);
   xcb_flush(dpy);
 
-  if (e->state < MOD1) {
+  if (e->state < MODKEY) {
     return;
   }
 
@@ -110,17 +79,17 @@ static void handleButtonPress(xcb_generic_event_t *ev) {
     xcb_warp_pointer(dpy, XCB_NONE, win, 0, 0, 0, 0, geom->width, geom->height);
   }
 
-  xcb_grab_pointer(dpy, 0, scre->root,
+  xcb_grab_pointer(dpy, 0, scr->root,
                    XCB_EVENT_MASK_BUTTON_RELEASE |
                        XCB_EVENT_MASK_BUTTON_MOTION |
                        XCB_EVENT_MASK_POINTER_MOTION_HINT,
-                   XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, scre->root,
+                   XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, scr->root,
                    XCB_NONE, XCB_CURRENT_TIME);
 }
 
 static void handleMotionNotify(xcb_generic_event_t *ev) {
   UNUSED(ev);
-  xcb_query_pointer_cookie_t coord = xcb_query_pointer(dpy, scre->root);
+  xcb_query_pointer_cookie_t coord = xcb_query_pointer(dpy, scr->root);
   xcb_query_pointer_reply_t *poin = xcb_query_pointer_reply(dpy, coord, 0);
   uint32_t val[2] = {1, 3};
   if ((values[2] == val[0]) && (win != 0)) {
@@ -128,13 +97,13 @@ static void handleMotionNotify(xcb_generic_event_t *ev) {
     xcb_get_geometry_reply_t *geom =
         xcb_get_geometry_reply(dpy, geom_now, NULL);
     values[0] = ((poin->root_x + geom->width + (2 * BORDER_WIDTH)) >
-                 scre->width_in_pixels)
-                    ? (scre->width_in_pixels - geom->width - (2 * BORDER_WIDTH))
+                 scr->width_in_pixels)
+                    ? (scr->width_in_pixels - geom->width - (2 * BORDER_WIDTH))
                     : poin->root_x;
     values[1] =
         ((poin->root_y + geom->height + (2 * BORDER_WIDTH)) >
-         scre->height_in_pixels)
-            ? (scre->height_in_pixels - geom->height - (2 * BORDER_WIDTH))
+         scr->height_in_pixels)
+            ? (scr->height_in_pixels - geom->height - (2 * BORDER_WIDTH))
             : poin->root_y;
     xcb_configure_window(dpy, win, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
                          values);
@@ -171,16 +140,20 @@ static xcb_keysym_t xcb_get_keysym(xcb_keycode_t keycode) {
 }
 
 static void setFocus(xcb_drawable_t window) {
-  if ((window != 0) && (window != scre->root)) {
+  if ((window != 0) && (window != scr->root)) {
     xcb_set_input_focus(dpy, XCB_INPUT_FOCUS_POINTER_ROOT, window,
                         XCB_CURRENT_TIME);
     focused = window;
+
+    // move the focused window above all others
+    static const uint32_t v[] = {XCB_STACK_MODE_ABOVE};
+    xcb_configure_window(dpy, window, XCB_CONFIG_WINDOW_STACK_MODE, v);
+    xcb_flush(dpy);
   }
-  xcb_configure_window(dpy, win, XCB_CONFIG_WINDOW_STACK_MODE, values);
 }
 
 static void setBorderColor(xcb_window_t window, int focus) {
-  if ((BORDER_WIDTH > 0) && (scre->root != window) && (0 != window)) {
+  if ((BORDER_WIDTH > 0) && (scr->root != window) && (0 != window)) {
     uint32_t vals[1];
     vals[0] = focus ? BORDER_COLOR_FOCUSED : BORDER_COLOR_UNFOCUSED;
     xcb_change_window_attributes(dpy, window, XCB_CW_BORDER_PIXEL, vals);
@@ -189,7 +162,7 @@ static void setBorderColor(xcb_window_t window, int focus) {
 }
 
 static void setBorderWidth(xcb_window_t window) {
-  if ((BORDER_WIDTH > 0) && (scre->root != window) && (0 != window)) {
+  if ((BORDER_WIDTH > 0) && (scr->root != window) && (0 != window)) {
     uint32_t vals[2];
     vals[0] = BORDER_WIDTH;
     xcb_configure_window(dpy, window, XCB_CONFIG_WINDOW_BORDER_WIDTH, vals);
@@ -198,7 +171,7 @@ static void setBorderWidth(xcb_window_t window) {
 }
 
 static void setWindowDimensions(xcb_window_t window) {
-  if ((scre->root != window) && (0 != window)) {
+  if ((scr->root != window) && (0 != window)) {
     uint32_t vals[2];
     vals[0] = WINDOW_X;
     vals[1] = WINDOW_Y;
@@ -209,10 +182,10 @@ static void setWindowDimensions(xcb_window_t window) {
 }
 
 static void setWindowPosition(xcb_window_t window) {
-  if ((scre->root != window) && (0 != window)) {
+  if ((scr->root != window) && (0 != window)) {
     uint32_t vals[2];
-    vals[0] = (scre->width_in_pixels / 2) - (WINDOW_X / 2);
-    vals[1] = (scre->height_in_pixels / 2) - (WINDOW_Y / 2);
+    vals[0] = (scr->width_in_pixels / 2) - (WINDOW_X / 2);
+    vals[1] = (scr->height_in_pixels / 2) - (WINDOW_Y / 2);
     xcb_configure_window(dpy, window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
                          vals);
     xcb_flush(dpy);
@@ -290,79 +263,43 @@ static void eventHandler(xcb_generic_event_t *ev) {
   }
 }
 
-static int setup(void) {
+static void setup(void) {
   /* subscribe to events */
   uint32_t values[] = {ROOT_EVENT_MASK};
-  /* values[0] = */
-  /*     XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | XCB_EVENT_MASK_STRUCTURE_NOTIFY
-   * | */
-  /*     XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | XCB_EVENT_MASK_PROPERTY_CHANGE; */
-  xcb_change_window_attributes_checked(dpy, scre->root, XCB_CW_EVENT_MASK,
-                                       values);
+  xcb_change_window_attributes(dpy, scr->root, XCB_CW_EVENT_MASK, values);
   /* grab keys */
-  xcb_ungrab_key(dpy, XCB_GRAB_ANY, scre->root, XCB_MOD_MASK_ANY);
+  xcb_ungrab_key(dpy, XCB_GRAB_ANY, scr->root, XCB_MOD_MASK_ANY);
   int key_table_size = sizeof(keys) / sizeof(*keys);
   for (int i = 0; i < key_table_size; ++i) {
     xcb_keycode_t *keycode = xcb_get_keycodes(keys[i].keysym);
     if (keycode != NULL) {
-      xcb_grab_key(dpy, 1, scre->root, keys[i].mod, *keycode,
+      xcb_grab_key(dpy, 1, scr->root, keys[i].mod, *keycode,
                    XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
     }
   }
+
   /* grab buttons */
-  xcb_grab_button(dpy, 0, scre->root,
+  xcb_grab_button(dpy, 0, scr->root,
                   XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE,
-                  XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, scre->root,
-                  XCB_NONE, 1, MOD1);
-  xcb_grab_button(dpy, 0, scre->root,
+                  XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, scr->root, XCB_NONE,
+                  1, MODKEY);
+  xcb_grab_button(dpy, 0, scr->root,
                   XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE,
-                  XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, scre->root,
-                  XCB_NONE, 3, MOD1);
+                  XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, scr->root, XCB_NONE,
+                  3, MODKEY);
 
   xcb_flush(dpy);
-
-  return check_connection(dpy);
 }
 
-static int strcmp_c(char *str1, char *str2) {
-  char *c1 = str1;
-  char *c2 = str2;
-  while ((*c1) && ((*c1) == (*c2))) {
-    ++c1;
-    ++c2;
-  }
-  int n = (*c1) - (*c2);
-  return n;
-}
-
-static int die(char *errstr) {
-  printf("%s", errstr);
-  return 1;
-}
-
-int main(int argc, char *argv[]) {
-  int ret = 0;
-  if ((argc == 2) && (strcmp_c("-v", argv[1]) == 0)) {
-    die("xwm-0.1.3, © 2020 Michael Czigler, see LICENSE for details\n");
+int main() {
+  dpy = xcb_connect(NULL, NULL);
+  if (xcb_has_error(dpy))
     return 1;
-  }
 
-  if ((ret == 0) && (argc != 1)) {
-    die("usage: xwm [-v]\n");
+  scr = xcb_setup_roots_iterator(xcb_get_setup(dpy)).data;
+  setup();
+  if (xcb_has_error(dpy))
     return 1;
-  }
-
-  if (ret == 0) {
-    dpy = xcb_connect(NULL, NULL);
-    if (!check_connection(dpy))
-      return 1;
-  }
-
-  if (ret == 0) {
-    scre = xcb_setup_roots_iterator(xcb_get_setup(dpy)).data;
-    if (!setup())
-      return 2;
-  }
 
   bool running = true;
   while (running) {
@@ -374,7 +311,7 @@ int main(int argc, char *argv[]) {
       free(ev);
     }
 
-    if (!check_connection(dpy))
+    if (xcb_has_error(dpy))
       running = false;
   }
 }

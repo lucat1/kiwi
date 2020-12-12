@@ -2,12 +2,10 @@
 #define CONFIG_H
 
 #include "kiwi.h"
-#define XK_MISCELLANY
-#define XK_XKB_KEYS
 #include <X11/keysym.h>
 #include <xcb/xcb_keysyms.h>
 
-#define MOD1 XCB_MOD_MASK_4
+#define MODKEY XCB_MOD_MASK_4
 
 /* DEFAULT WINDOW PROPERTIES
  * The following parameters can be used to change existing and new
@@ -30,6 +28,8 @@
  * be terminated by a NULL pointer.
  */
 
+const int desktops = 5;
+
 static char *termcmd[] = {"st", NULL};
 static char *menucmd[] = {"dmenu_run", NULL};
 
@@ -38,9 +38,9 @@ static char *menucmd[] = {"dmenu_run", NULL};
  * definitions, refer to the keysymdef.h and XF86keysym.h headers.
  */
 
-static Key keys[] = {{MOD1, XK_Return, spawn, termcmd},
-                     {MOD1, XK_space, spawn, menucmd},
-                     {MOD1, XK_q, killclient, NULL},
-                     {MOD1 | XCB_MOD_MASK_SHIFT, XK_q, closewm, NULL}};
+static Key keys[] = {{MODKEY, XK_Return, spawn, termcmd},
+                     {MODKEY, XK_space, spawn, menucmd},
+                     {MODKEY, XK_w, killclient, NULL},
+                     {MODKEY | XCB_MOD_MASK_SHIFT, XK_q, closewm, NULL}};
 
 #endif // CONFIG_H

@@ -57,8 +57,4 @@ static handler_func_t handler_funs[] = {
     {XCB_FOCUS_OUT, handleFocusOut},
     {XCB_NONE, NULL}};
 
-/* error handling & misc. */
-static int die(char *errstr);
-static int strcmp_c(char *str1, char *str2);
-
 #endif
