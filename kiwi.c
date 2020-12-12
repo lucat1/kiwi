@@ -252,14 +252,14 @@ static void setup() {
   }
 
   /* grab buttons */
-  xcb_grab_button(dpy, 0, scr->root,
-                  XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE,
-                  XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, scr->root, XCB_NONE,
-                  1, MODKEY);
-  xcb_grab_button(dpy, 0, scr->root,
-                  XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE,
-                  XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, scr->root, XCB_NONE,
-                  3, MODKEY);
+#define GRAB(b)                                                                \
+  xcb_grab_button(dpy, false, scr->root,                                       \
+                  XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE, \
+                  XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, scr->root,         \
+                  XCB_NONE, b, MODKEY);
+  GRAB(XCB_BUTTON_INDEX_1);
+  GRAB(XCB_BUTTON_INDEX_3);
+#undef GRAB
 
   xcb_flush(dpy);
 }
