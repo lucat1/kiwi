@@ -7,23 +7,7 @@
 #include <X11/keysym.h>
 #include <xcb/xcb_keysyms.h>
 
-/* DEFAULT KEYS
- * The following are the possible mask definitions.  Note
- * that these definitions may vary between X implementations
- * and keyboard models.
- *     XCB_MOD_MASK_1       -> Alt_L Alt_R Meta_L
- *     XCB_MOD_MASK_2       -> Num_Lock
- *     XCB_MOD_MASK_3       -> ISO_Level3_Shift
- *     XCB_MOD_MASK_4       -> Super_L Super_R SuperL Hyper_L
- *     XCB_MOD_MASK_5       -> ISO_Level5_Shifta
- *     XCB_MOD_MASK_SHIFT
- *     XCB_MOD_MASK_CONTROL
- *     XCB_MOD_MASK_LOCK
- *     XCB_MOD_MASK_ANY
- */
-
 #define MOD1 XCB_MOD_MASK_4
-#define MOD2 XCB_MOD_MASK_SHIFT
 
 /* DEFAULT WINDOW PROPERTIES
  * The following parameters can be used to change existing and new
@@ -54,11 +38,9 @@ static char *menucmd[] = {"dmenu_run", NULL};
  * definitions, refer to the keysymdef.h and XF86keysym.h headers.
  */
 
-static Key keys[] = {
-    {MOD1, XK_Return, spawn, termcmd}, /* 0xff0d = XK_Enter */
-    {MOD1, XK_space, spawn, menucmd},  /* 0x0020 = XK_space */
-    {MOD1, XK_q, killclient, NULL},    /* 0x0071 = XK_q */
-    {MOD1 | MOD2, XK_q, closewm, NULL} /* 0x0071 = XK_q */
-};
+static Key keys[] = {{MOD1, XK_Return, spawn, termcmd},
+                     {MOD1, XK_space, spawn, menucmd},
+                     {MOD1, XK_q, killclient, NULL},
+                     {MOD1 | XCB_MOD_MASK_SHIFT, XK_q, closewm, NULL}};
 
 #endif // CONFIG_H
