@@ -24,9 +24,13 @@ void _print(const char *t, const char *fmt, ...);
 #endif // DEBUG
 
 #define SIZEOF(k) (int)(sizeof(k) / sizeof(*k))
+#define UNUSED(x) (void)(x)
 
 bool xcb_has_error(xcb_connection_t *dpy);
 xcb_keycode_t *xcb_get_keycode(xcb_connection_t *dpy, xcb_keysym_t keysym);
 xcb_keysym_t xcb_get_keysym(xcb_connection_t *dpy, xcb_keycode_t keycode);
+#ifdef DEBUG
+char *xcb_event_str(int type);
+#endif
 
 #endif // UTIL_H

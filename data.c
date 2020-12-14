@@ -5,7 +5,7 @@
 // pushes the new list at the end of the `head` list
 // it allows to push into an empty head
 #define PUSH(n, t)                                                             \
-  t *push_##n(t *head, t *new) {                                               \
+  t *push_##n(t *head, t *n) {                                                 \
     t *res = head, *tail = NULL;                                               \
     while (head != NULL) {                                                     \
       tail = head;                                                             \
@@ -13,9 +13,9 @@
     }                                                                          \
                                                                                \
     if (tail != NULL)                                                          \
-      tail->next = new;                                                        \
+      tail->next = n;                                                          \
     else                                                                       \
-      res = new;                                                               \
+      res = n;                                                                 \
                                                                                \
     return res;                                                                \
   }
@@ -23,16 +23,16 @@
 // append a new list at the beginning of a list
 // returns the new head of the list
 #define UNSHIFT(n, t)                                                          \
-  t *unshift_##n(t *head, t *new) {                                            \
-    if (new == NULL)                                                           \
+  t *unshift_##n(t *head, t *n) {                                              \
+    if (n == NULL)                                                             \
       return head;                                                             \
-    t *new_head = new;                                                         \
-    while (new->next != NULL) {                                                \
-      new = new->next;                                                         \
+    t *n_head = n;                                                             \
+    while (n->next != NULL) {                                                  \
+      n = n->next;                                                             \
     }                                                                          \
-    new->next = head;                                                          \
+    n->next = head;                                                            \
                                                                                \
-    return new_head;                                                           \
+    return n_head;                                                             \
   }
 
 #define FREE(n, t)                                                             \
@@ -46,8 +46,21 @@
 
 PUSH(client, client_t)
 UNSHIFT(client, client_t)
-FREE(client, client_t)
+FREE(clients, client_t)
 
 PUSH(desktop, desktop_t)
 UNSHIFT(desktop, desktop_t)
-FREE(desktop, desktop_t)
+FREE(desktops, desktop_t)
+
+int desktop_count = 0;
+
+// initializes a desktop struct
+desktop_t *new_desktop(layout_t l) {
+  desktop_t *desk = malloc(sizeof(desktop_t));
+  desk->i = desktop_count++;
+  desk->layout = l;
+  desk->clients = NULL;
+  desk->focused = NULL;
+  desk->next = NULL;
+  return desk;
+}

@@ -54,4 +54,18 @@ struct handler_func {
   void (*func)(xcb_generic_event_t *ev);
 };
 
+#define PUSHD(n, t) t *push_##n(t *head, t *n);
+#define UNSHIFTD(n, t) t *unshift_##n(t *head, t *n);
+#define FREED(n, t) void free_##n(t *list);
+
+PUSHD(client, client_t)
+UNSHIFTD(client, client_t)
+FREED(clients, client_t)
+
+PUSHD(desktop, desktop_t)
+UNSHIFTD(desktop, desktop_t)
+FREED(desktops, desktop_t)
+
+desktop_t *new_desktop(layout_t l);
+
 #endif // DATA_H

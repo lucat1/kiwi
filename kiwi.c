@@ -1,6 +1,7 @@
 #include "kiwi.h"
 #include "config.h"
 #include "data.h"
+#include "events.h"
 #include "util.h"
 
 #include <stdbool.h>
@@ -13,27 +14,26 @@
 #define ROOT_EVENT_MASK                                                        \
   (XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | \
    XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_BUTTON_PRESS)
-#define UNUSED(x) (void)(x)
 
-// below is stuff to refactor
-static xcb_window_t focused;
-static uint32_t values[3];
-static uint32_t min_x = WINDOW_MIN_X;
-static uint32_t min_y = WINDOW_MIN_Y;
+desktop_t *desktops = NULL;
+desktop_t *focused_desktop = NULL;
+xcb_connection_t *dpy = NULL;
+xcb_screen_t *scr = NULL;
+xcb_window_t focused = 0;
 
-static void killclient(char **com) {
+void killclient(char **com) {
   UNUSED(com);
   xcb_kill_client(dpy, focused);
 }
 
-static void closewm(char **com) {
+void closewm(char **com) {
   UNUSED(com);
   if (dpy != NULL) {
     xcb_disconnect(dpy);
   }
 }
 
-static void spawn(char **com) {
+void spawn(char **com) {
   if (fork() == 0) {
     if (dpy != NULL) {
       close(scr->root);
@@ -48,79 +48,7 @@ static void spawn(char **com) {
   wait(NULL);
 }
 
-static void handle_button_press(xcb_generic_event_t *ev) {
-  xcb_button_press_event_t *e = (xcb_button_press_event_t *)ev;
-  if (e->state < MODKEY)
-    setFocus(e->event);
-  else
-    setFocus(e->child);
-
-  // propagate click events
-  xcb_allow_events(dpy, XCB_ALLOW_REPLAY_POINTER, e->time);
-  xcb_flush(dpy);
-
-  if (e->state < MODKEY) {
-    return;
-  }
-
-  values[0] = XCB_STACK_MODE_ABOVE;
-  xcb_get_geometry_reply_t *geom = xcb_get_geometry_reply(
-      dpy, xcb_get_geometry_unchecked(dpy, focused), NULL);
-
-  if (e->detail == 1) {
-    values[2] = 1;
-    xcb_warp_pointer(dpy, XCB_NONE, scr->root, 0, 0, 0, 0, geom->x, geom->y);
-  } else if (focused != 0) {
-    values[2] = 3;
-    xcb_warp_pointer(dpy, XCB_NONE, scr->root, 0, 0, 0, 0,
-                     geom->x + geom->width, geom->y + geom->height);
-  }
-
-  xcb_grab_pointer(dpy, false, scr->root,
-                   XCB_EVENT_MASK_BUTTON_RELEASE |
-                       XCB_EVENT_MASK_BUTTON_MOTION |
-                       XCB_EVENT_MASK_POINTER_MOTION_HINT,
-                   XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, scr->root,
-                   XCB_NONE, XCB_CURRENT_TIME);
-}
-
-static void handleMotionNotify(xcb_generic_event_t *ev) {
-  UNUSED(ev);
-  xcb_query_pointer_cookie_t coord = xcb_query_pointer(dpy, scr->root);
-  xcb_query_pointer_reply_t *poin = xcb_query_pointer_reply(dpy, coord, 0);
-  uint32_t val[2] = {1, 3};
-  if ((values[2] == val[0]) && (focused != 0)) {
-    xcb_get_geometry_cookie_t geom_now = xcb_get_geometry(dpy, focused);
-    xcb_get_geometry_reply_t *geom =
-        xcb_get_geometry_reply(dpy, geom_now, NULL);
-    values[0] = ((poin->root_x + geom->width + (2 * BORDER_WIDTH)) >
-                 scr->width_in_pixels)
-                    ? (scr->width_in_pixels - geom->width - (2 * BORDER_WIDTH))
-                    : poin->root_x;
-    values[1] =
-        ((poin->root_y + geom->height + (2 * BORDER_WIDTH)) >
-         scr->height_in_pixels)
-            ? (scr->height_in_pixels - geom->height - (2 * BORDER_WIDTH))
-            : poin->root_y;
-    xcb_configure_window(dpy, focused,
-                         XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
-  } else if ((values[2] == val[1]) && (focused != 0)) {
-    xcb_get_geometry_cookie_t geom_now = xcb_get_geometry(dpy, focused);
-    xcb_get_geometry_reply_t *geom =
-        xcb_get_geometry_reply(dpy, geom_now, NULL);
-    if (!((poin->root_x <= geom->x) || (poin->root_y <= geom->y))) {
-      values[0] = poin->root_x - geom->x - BORDER_WIDTH;
-      values[1] = poin->root_y - geom->y - BORDER_WIDTH;
-      if ((values[0] >= min_x) && (values[1] >= min_y)) {
-        xcb_configure_window(dpy, focused,
-                             XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
-                             values);
-      }
-    }
-  }
-}
-
-static void setFocus(xcb_drawable_t window) {
+void setFocus(xcb_drawable_t window) {
   if ((window != 0) && (window != scr->root)) {
     xcb_set_input_focus(dpy, XCB_INPUT_FOCUS_POINTER_ROOT, window,
                         XCB_CURRENT_TIME);
@@ -133,7 +61,7 @@ static void setFocus(xcb_drawable_t window) {
   }
 }
 
-static void setBorderColor(xcb_window_t window, int focus) {
+void setBorderColor(xcb_window_t window, int focus) {
   if ((BORDER_WIDTH > 0) && (scr->root != window) && (0 != window)) {
     uint32_t vals[1];
     vals[0] = focus ? BORDER_COLOR_FOCUSED : BORDER_COLOR_UNFOCUSED;
@@ -142,7 +70,7 @@ static void setBorderColor(xcb_window_t window, int focus) {
   }
 }
 
-static void setBorderWidth(xcb_window_t window) {
+void setBorderWidth(xcb_window_t window) {
   if ((BORDER_WIDTH > 0) && (scr->root != window) && (0 != window)) {
     uint32_t vals[2];
     vals[0] = BORDER_WIDTH;
@@ -151,7 +79,7 @@ static void setBorderWidth(xcb_window_t window) {
   }
 }
 
-static void setWindowDimensions(xcb_window_t window) {
+void setWindowDimensions(xcb_window_t window) {
   if ((scr->root != window) && (0 != window)) {
     uint32_t vals[2];
     vals[0] = WINDOW_X;
@@ -162,7 +90,7 @@ static void setWindowDimensions(xcb_window_t window) {
   }
 }
 
-static void setWindowPosition(xcb_window_t window) {
+void setWindowPosition(xcb_window_t window) {
   if ((scr->root != window) && (0 != window)) {
     uint32_t vals[2];
     vals[0] = (scr->width_in_pixels / 2) - (WINDOW_X / 2);
@@ -170,80 +98,6 @@ static void setWindowPosition(xcb_window_t window) {
     xcb_configure_window(dpy, window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
                          vals);
     xcb_flush(dpy);
-  }
-}
-
-static void handleKeyPress(xcb_generic_event_t *ev) {
-  xcb_key_press_event_t *e = (xcb_key_press_event_t *)ev;
-  xcb_keysym_t keysym = xcb_get_keysym(dpy, e->detail);
-  focused = e->child;
-  int key_table_size = sizeof(keys) / sizeof(*keys);
-  for (int i = 0; i < key_table_size; ++i) {
-    if ((keys[i].keysym == keysym) && (keys[i].mod == e->state)) {
-      keys[i].func(keys[i].com);
-    }
-  }
-}
-
-static void handleEnterNotify(xcb_generic_event_t *ev) { UNUSED(ev); }
-
-static void handleLeaveNotify(xcb_generic_event_t *ev) { UNUSED(ev); }
-
-static void handleButtonRelease(xcb_generic_event_t *ev) {
-  UNUSED(ev);
-  xcb_ungrab_pointer(dpy, XCB_CURRENT_TIME);
-}
-
-static void handleDestroyNotify(xcb_generic_event_t *ev) {
-  xcb_destroy_notify_event_t *e = (xcb_destroy_notify_event_t *)ev;
-  xcb_ungrab_button(dpy, XCB_BUTTON_INDEX_1, e->window, XCB_NONE);
-  xcb_kill_client(dpy, e->window);
-}
-
-static void handleFocusIn(xcb_generic_event_t *ev) {
-  xcb_focus_in_event_t *e = (xcb_focus_in_event_t *)ev;
-  setBorderColor(e->event, 1);
-}
-
-static void handleFocusOut(xcb_generic_event_t *ev) {
-  xcb_focus_out_event_t *e = (xcb_focus_out_event_t *)ev;
-  setBorderColor(e->event, 0);
-}
-
-static void handleMapRequest(xcb_generic_event_t *ev) {
-  xcb_map_request_event_t *e = (xcb_map_request_event_t *)ev;
-  xcb_grab_button(dpy, false, e->window, XCB_EVENT_MASK_BUTTON_PRESS,
-                  XCB_GRAB_MODE_SYNC, XCB_GRAB_MODE_ASYNC, XCB_NONE, XCB_NONE,
-                  XCB_BUTTON_INDEX_1, XCB_NONE);
-  xcb_map_window(dpy, e->window);
-  setWindowDimensions(e->window);
-  setWindowPosition(e->window);
-  setBorderWidth(e->window);
-  values[0] = XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_FOCUS_CHANGE;
-  xcb_change_window_attributes_checked(dpy, e->window, XCB_CW_EVENT_MASK,
-                                       values);
-  setFocus(e->window);
-}
-
-static handler_func_t handler_funs[] = {
-    {XCB_MOTION_NOTIFY, handleMotionNotify},
-    {XCB_ENTER_NOTIFY, handleEnterNotify},
-    {XCB_LEAVE_NOTIFY, handleLeaveNotify},
-    {XCB_DESTROY_NOTIFY, handleDestroyNotify},
-    {XCB_BUTTON_PRESS, handle_button_press},
-    {XCB_BUTTON_RELEASE, handleButtonRelease},
-    {XCB_KEY_PRESS, handleKeyPress},
-    {XCB_MAP_REQUEST, handleMapRequest},
-    {XCB_FOCUS_IN, handleFocusIn},
-    {XCB_FOCUS_OUT, handleFocusOut},
-    {XCB_NONE, NULL}};
-
-static void handle_event(xcb_generic_event_t *ev) {
-  handler_func_t *handler;
-  for (handler = handler_funs; handler->func != NULL; handler++) {
-    if ((ev->response_type & ~0x80) == handler->request) {
-      handler->func(ev);
-    }
   }
 }
 
@@ -275,7 +129,12 @@ static void setup() {
 #undef GRAB
 
   xcb_flush(dpy);
+
+  // setup the first desktop
+  desktops = focused_desktop = new_desktop(DEFAULT_LAYOUT);
 }
+
+void clean() { free_desktops(desktops); }
 
 int main() {
   dpy = xcb_connect(NULL, NULL);
@@ -293,11 +152,19 @@ int main() {
     xcb_generic_event_t *ev;
 
     if ((ev = xcb_wait_for_event(dpy)) != NULL) {
-      handle_event(ev);
+      int type = ev->response_type & ~0x80;
+      if (events[type])
+        events[type](ev);
+#ifdef DEBUG
+      else
+        msg("unhandled event: %s", xcb_event_str(type));
+#endif // DEBUG
       free(ev);
     }
 
     if (xcb_has_error(dpy))
       running = false;
   }
+
+  clean();
 }

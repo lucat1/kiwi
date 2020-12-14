@@ -1,7 +1,7 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#define desktops 5
+#include "layouts.h"
 
 #include "data.h"
 #include "kiwi.h"
@@ -9,6 +9,12 @@
 #include <xcb/xcb_keysyms.h>
 
 #define MODKEY XCB_MOD_MASK_4
+
+// defines the default layout for new desktops
+// options:
+// - tiling_layout
+// - floating_layout
+#define DEFAULT_LAYOUT tiling_layout
 
 /* DEFAULT WINDOW PROPERTIES
  * The following parameters can be used to change existing and new
