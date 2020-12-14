@@ -9,12 +9,14 @@
 void (*events[XCB_NO_OPERATION])(xcb_generic_event_t *e) = {
     [XCB_MAP_REQUEST] = handle_map_request,
     [XCB_DESTROY_NOTIFY] = handle_destroy_notify,
+
     [XCB_BUTTON_PRESS] = handle_button_press,
     [XCB_MOTION_NOTIFY] = handle_motion_notify,
     [XCB_BUTTON_RELEASE] = handle_button_release,
 
+#if FOCUS_TYPE
     [XCB_ENTER_NOTIFY] = handle_enter_notify,
-    [XCB_LEAVE_NOTIFY] = handle_leave_notify,
+#endif // FOCUS_TYPE
 
     [XCB_FOCUS_IN] = handle_focus_in,
     [XCB_FOCUS_OUT] = handle_focus_out,
@@ -26,18 +28,37 @@ static uint32_t values[3];
 static uint32_t min_x = WINDOW_MIN_X;
 static uint32_t min_y = WINDOW_MIN_Y;
 
+void handle_map_request(xcb_generic_event_t *ev) {
+  xcb_map_request_event_t *e = (xcb_map_request_event_t *)ev;
+  xcb_grab_button(dpy, false, e->window, XCB_EVENT_MASK_BUTTON_PRESS,
+                  XCB_GRAB_MODE_SYNC, XCB_GRAB_MODE_ASYNC, XCB_NONE, XCB_NONE,
+                  XCB_BUTTON_INDEX_1, XCB_NONE);
+  xcb_map_window(dpy, e->window);
+  setWindowDimensions(e->window);
+  setWindowPosition(e->window);
+  setBorderWidth(e->window);
+  values[0] = XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_FOCUS_CHANGE;
+  xcb_change_window_attributes_checked(dpy, e->window, XCB_CW_EVENT_MASK,
+                                       values);
+  setFocus(e->window);
+}
+
+void handle_destroy_notify(xcb_generic_event_t *ev) {
+  xcb_destroy_notify_event_t *e = (xcb_destroy_notify_event_t *)ev;
+  xcb_ungrab_button(dpy, XCB_BUTTON_INDEX_1, e->window, XCB_NONE);
+  xcb_kill_client(dpy, e->window);
+}
+
 void handle_button_press(xcb_generic_event_t *ev) {
   xcb_button_press_event_t *e = (xcb_button_press_event_t *)ev;
-  if (e->state < MODKEY)
-    setFocus(e->event);
-  else
-    setFocus(e->child);
+  int wid = e->state < MODKEY ? e->event : e->child;
+  setFocus(wid);
 
   // propagate click events
   xcb_allow_events(dpy, XCB_ALLOW_REPLAY_POINTER, e->time);
   xcb_flush(dpy);
 
-  if (e->state < MODKEY || focused == 0) {
+  if (e->state < MODKEY || wid == 0) {
     return;
   }
 
@@ -99,32 +120,17 @@ void handle_motion_notify(xcb_generic_event_t *ev) {
   }
 }
 
-void handle_key_press(xcb_generic_event_t *ev) {
-  xcb_key_press_event_t *e = (xcb_key_press_event_t *)ev;
-  xcb_keysym_t keysym = xcb_get_keysym(dpy, e->detail);
-  focused = e->child;
-  int key_table_size = sizeof(keys) / sizeof(*keys);
-  for (int i = 0; i < key_table_size; ++i) {
-    if ((keys[i].keysym == keysym) && (keys[i].mod == e->state)) {
-      keys[i].func(keys[i].com);
-    }
-  }
-}
-
-void handle_enter_notify(xcb_generic_event_t *ev) { UNUSED(ev); }
-
-void handle_leave_notify(xcb_generic_event_t *ev) { UNUSED(ev); }
-
 void handle_button_release(xcb_generic_event_t *ev) {
   UNUSED(ev);
   xcb_ungrab_pointer(dpy, XCB_CURRENT_TIME);
 }
 
-void handle_destroy_notify(xcb_generic_event_t *ev) {
-  xcb_destroy_notify_event_t *e = (xcb_destroy_notify_event_t *)ev;
-  xcb_ungrab_button(dpy, XCB_BUTTON_INDEX_1, e->window, XCB_NONE);
-  xcb_kill_client(dpy, e->window);
+#if FOCUS_TYPE
+void handle_enter_notify(xcb_generic_event_t *ev) {
+  xcb_enter_notify_event_t *e = (xcb_enter_notify_event_t *)ev;
+  setFocus(e->event);
 }
+#endif // FOCUS_TYPE
 
 void handle_focus_in(xcb_generic_event_t *ev) {
   xcb_focus_in_event_t *e = (xcb_focus_in_event_t *)ev;
@@ -136,17 +142,14 @@ void handle_focus_out(xcb_generic_event_t *ev) {
   setBorderColor(e->event, 0);
 }
 
-void handle_map_request(xcb_generic_event_t *ev) {
-  xcb_map_request_event_t *e = (xcb_map_request_event_t *)ev;
-  xcb_grab_button(dpy, false, e->window, XCB_EVENT_MASK_BUTTON_PRESS,
-                  XCB_GRAB_MODE_SYNC, XCB_GRAB_MODE_ASYNC, XCB_NONE, XCB_NONE,
-                  XCB_BUTTON_INDEX_1, XCB_NONE);
-  xcb_map_window(dpy, e->window);
-  setWindowDimensions(e->window);
-  setWindowPosition(e->window);
-  setBorderWidth(e->window);
-  values[0] = XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_FOCUS_CHANGE;
-  xcb_change_window_attributes_checked(dpy, e->window, XCB_CW_EVENT_MASK,
-                                       values);
-  setFocus(e->window);
+void handle_key_press(xcb_generic_event_t *ev) {
+  xcb_key_press_event_t *e = (xcb_key_press_event_t *)ev;
+  xcb_keysym_t keysym = xcb_get_keysym(dpy, e->detail);
+  focused = e->child;
+  int key_table_size = sizeof(keys) / sizeof(*keys);
+  for (int i = 0; i < key_table_size; ++i) {
+    if ((keys[i].keysym == keysym) && (keys[i].mod == e->state)) {
+      keys[i].func(keys[i].com);
+    }
+  }
 }

@@ -12,9 +12,14 @@
 
 // defines the default layout for new desktops
 // options:
-// - tiling_layout
+// - tiling_layout (default)
 // - floating_layout
 #define DEFAULT_LAYOUT tiling_layout
+
+// focus type
+// (0) click to focus (default)
+// (1) focus follows pointer
+#define FOCUS_TYPE 1
 
 /* DEFAULT WINDOW PROPERTIES
  * The following parameters can be used to change existing and new
