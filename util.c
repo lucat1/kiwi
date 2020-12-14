@@ -5,6 +5,7 @@
 #include <string.h>
 #include <xcb/xcb.h>
 #include <xcb/xcb_keysyms.h>
+#include <xcb/xproto.h>
 
 #ifdef DEBUG
 void _print(const char *t, const char *fn, const char *f, const int l,
@@ -67,28 +68,6 @@ bool xcb_has_error(xcb_connection_t *dpy) {
   return true;
 }
 
-// taken from xwm
-xcb_keysym_t xcb_get_keysym(xcb_connection_t *dpy, xcb_keycode_t keycode) {
-  xcb_key_symbols_t *keysyms = xcb_key_symbols_alloc(dpy);
-  xcb_keysym_t keysym;
-
-  keysym = (!(keysyms) ? 0 : xcb_key_symbols_get_keysym(keysyms, keycode, 0));
-  xcb_key_symbols_free(keysyms);
-
-  return keysym;
-}
-
-// taken from xwm
-xcb_keycode_t *xcb_get_keycode(xcb_connection_t *dpy, xcb_keysym_t keysym) {
-  xcb_key_symbols_t *keysyms = xcb_key_symbols_alloc(dpy);
-  xcb_keycode_t *keycode;
-
-  keycode = (!(keysyms) ? NULL : xcb_key_symbols_get_keycode(keysyms, keysym));
-  xcb_key_symbols_free(keysyms);
-
-  return keycode;
-}
-
 #ifdef DEBUG
 // borrowed from FrankenWM
 char *xcb_event_str(int type) {
@@ -146,3 +125,39 @@ char *xcb_event_str(int type) {
   }
 }
 #endif // DEBUG
+
+// taken from xwm
+xcb_keysym_t xcb_get_keysym(xcb_connection_t *dpy, xcb_keycode_t keycode) {
+  xcb_key_symbols_t *keysyms = xcb_key_symbols_alloc(dpy);
+  xcb_keysym_t keysym;
+
+  keysym = (!(keysyms) ? 0 : xcb_key_symbols_get_keysym(keysyms, keycode, 0));
+  xcb_key_symbols_free(keysyms);
+
+  return keysym;
+}
+
+// taken from xwm
+xcb_keycode_t *xcb_get_keycode(xcb_connection_t *dpy, xcb_keysym_t keysym) {
+  xcb_key_symbols_t *keysyms = xcb_key_symbols_alloc(dpy);
+  xcb_keycode_t *keycode;
+
+  keycode = (!(keysyms) ? NULL : xcb_key_symbols_get_keycode(keysyms, keysym));
+  xcb_key_symbols_free(keysyms);
+
+  return keycode;
+}
+
+// wrapper around xcb_get_geomtry for safe error handling
+// NOTE: the return value MUST be freed
+xcb_get_geometry_reply_t *xcb_geometry(xcb_connection_t *dpy,
+                                       xcb_drawable_t drw) {
+  xcb_get_geometry_cookie_t cookie = xcb_get_geometry(dpy, drw);
+  xcb_generic_error_t *err = NULL;
+  xcb_get_geometry_reply_t *reply = xcb_get_geometry_reply(dpy, cookie, &err);
+  if (err == NULL)
+    return reply;
+
+  fail("could not get geometry: %d", err->error_code);
+  return NULL;
+}

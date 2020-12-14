@@ -1,8 +1,10 @@
 #include "events.h"
 #include "config.h"
+#include "data.h"
 #include "kiwi.h"
 #include "util.h"
 #include <stdbool.h>
+#include <stdlib.h>
 #include <xcb/xcb.h>
 #include <xcb/xproto.h>
 
@@ -30,15 +32,22 @@ static uint32_t min_y = WINDOW_MIN_Y;
 
 void handle_map_request(xcb_generic_event_t *ev) {
   xcb_map_request_event_t *e = (xcb_map_request_event_t *)ev;
+
+#if !FOCUS_TYPE
+  // start grabbing for clicks on the window
   xcb_grab_button(dpy, false, e->window, XCB_EVENT_MASK_BUTTON_PRESS,
                   XCB_GRAB_MODE_SYNC, XCB_GRAB_MODE_ASYNC, XCB_NONE, XCB_NONE,
                   XCB_BUTTON_INDEX_1, XCB_NONE);
-  xcb_map_window(dpy, e->window);
-  setWindowDimensions(e->window);
-  setWindowPosition(e->window);
-  setBorderWidth(e->window);
+#endif
+
+  client_t *c = new_client(e->window);
+  focused_desktop->clients = push_client(focused_desktop->clients, c);
+  xcb_map_window(dpy, c->window);
+
+  focused_desktop->layout.reposition(focused_desktop);
+  setBorderWidth(c->window);
   values[0] = XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_FOCUS_CHANGE;
-  xcb_change_window_attributes_checked(dpy, e->window, XCB_CW_EVENT_MASK,
+  xcb_change_window_attributes_checked(dpy, c->window, XCB_CW_EVENT_MASK,
                                        values);
   setFocus(e->window);
 }
@@ -63,8 +72,7 @@ void handle_button_press(xcb_generic_event_t *ev) {
   }
 
   values[0] = XCB_STACK_MODE_ABOVE;
-  xcb_get_geometry_reply_t *geom = xcb_get_geometry_reply(
-      dpy, xcb_get_geometry_unchecked(dpy, focused), NULL);
+  xcb_get_geometry_reply_t *geom = xcb_geometry(dpy, focused);
 
   if (e->detail == 1) {
     values[2] = 1;
@@ -75,6 +83,7 @@ void handle_button_press(xcb_generic_event_t *ev) {
     xcb_warp_pointer(dpy, XCB_NONE, scr->root, 0, 0, 0, 0,
                      geom->x + geom->width, geom->y + geom->height);
   }
+  free(geom);
 
   xcb_grab_pointer(dpy, false, scr->root,
                    XCB_EVENT_MASK_BUTTON_RELEASE |

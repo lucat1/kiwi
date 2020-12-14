@@ -16,10 +16,17 @@
 // - floating_layout
 #define DEFAULT_LAYOUT tiling_layout
 
-// focus type
+// type of focus for windows. could be as follows
 // (0) click to focus (default)
 // (1) focus follows pointer
-#define FOCUS_TYPE 1
+#define FOCUS_TYPE 0
+
+// split ratio - how to divide the screen in tiling mode
+#define SPLIT_RATIO .6f
+// default split direction for new windows. could be as follows
+// - SPLIT_VERTICAL
+// - SPLIT_HORIZONTAL
+#define SPLIT_DIRECTION SPLIT_VERTICAL
 
 /* DEFAULT WINDOW PROPERTIES
  * The following parameters can be used to change existing and new

@@ -79,28 +79,6 @@ void setBorderWidth(xcb_window_t window) {
   }
 }
 
-void setWindowDimensions(xcb_window_t window) {
-  if ((scr->root != window) && (0 != window)) {
-    uint32_t vals[2];
-    vals[0] = WINDOW_X;
-    vals[1] = WINDOW_Y;
-    xcb_configure_window(
-        dpy, window, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, vals);
-    xcb_flush(dpy);
-  }
-}
-
-void setWindowPosition(xcb_window_t window) {
-  if ((scr->root != window) && (0 != window)) {
-    uint32_t vals[2];
-    vals[0] = (scr->width_in_pixels / 2) - (WINDOW_X / 2);
-    vals[1] = (scr->height_in_pixels / 2) - (WINDOW_Y / 2);
-    xcb_configure_window(dpy, window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
-                         vals);
-    xcb_flush(dpy);
-  }
-}
-
 static void setup() {
   xcb_keycode_t *keycode;
   // subscribe to events on the root window
@@ -134,7 +112,15 @@ static void setup() {
   desktops = focused_desktop = new_desktop(DEFAULT_LAYOUT);
 }
 
-void clean() { free_desktops(desktops); }
+void clean() {
+  desktop_t *iter = desktops;
+  while (iter != NULL) {
+    free_clients(iter->clients);
+    iter = iter->next;
+  }
+
+  free_desktops(desktops);
+}
 
 int main() {
   dpy = xcb_connect(NULL, NULL);
