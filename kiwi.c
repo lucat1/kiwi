@@ -15,13 +15,8 @@
    XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_BUTTON_PRESS)
 #define UNUSED(x) (void)(x)
 
-static desktop_t kiwi_desktops[desktops];
-
-static xcb_connection_t *dpy; // the X display
-static xcb_screen_t *scr;
-
 // below is stuff to refactor
-static xcb_window_t win, focused;
+static xcb_window_t focused;
 static uint32_t values[3];
 static uint32_t min_x = WINDOW_MIN_X;
 static uint32_t min_y = WINDOW_MIN_Y;
@@ -53,11 +48,14 @@ static void spawn(char **com) {
   wait(NULL);
 }
 
-static void handleButtonPress(xcb_generic_event_t *ev) {
+static void handle_button_press(xcb_generic_event_t *ev) {
   xcb_button_press_event_t *e = (xcb_button_press_event_t *)ev;
-  win = e->child;
-  setFocus(e->event);
+  if (e->state < MODKEY)
+    setFocus(e->event);
+  else
+    setFocus(e->child);
 
+  // propagate click events
   xcb_allow_events(dpy, XCB_ALLOW_REPLAY_POINTER, e->time);
   xcb_flush(dpy);
 
@@ -66,17 +64,19 @@ static void handleButtonPress(xcb_generic_event_t *ev) {
   }
 
   values[0] = XCB_STACK_MODE_ABOVE;
-  xcb_get_geometry_cookie_t geom_now = xcb_get_geometry(dpy, win);
-  xcb_get_geometry_reply_t *geom = xcb_get_geometry_reply(dpy, geom_now, NULL);
-  if (1 == e->detail) {
+  xcb_get_geometry_reply_t *geom = xcb_get_geometry_reply(
+      dpy, xcb_get_geometry_unchecked(dpy, focused), NULL);
+
+  if (e->detail == 1) {
     values[2] = 1;
-    xcb_warp_pointer(dpy, XCB_NONE, win, 0, 0, 0, 0, 1, 1);
-  } else if (win != 0) {
+    xcb_warp_pointer(dpy, XCB_NONE, scr->root, 0, 0, 0, 0, geom->x, geom->y);
+  } else if (focused != 0) {
     values[2] = 3;
-    xcb_warp_pointer(dpy, XCB_NONE, win, 0, 0, 0, 0, geom->width, geom->height);
+    xcb_warp_pointer(dpy, XCB_NONE, scr->root, 0, 0, 0, 0,
+                     geom->x + geom->width, geom->y + geom->height);
   }
 
-  xcb_grab_pointer(dpy, 0, scr->root,
+  xcb_grab_pointer(dpy, false, scr->root,
                    XCB_EVENT_MASK_BUTTON_RELEASE |
                        XCB_EVENT_MASK_BUTTON_MOTION |
                        XCB_EVENT_MASK_POINTER_MOTION_HINT,
@@ -89,8 +89,8 @@ static void handleMotionNotify(xcb_generic_event_t *ev) {
   xcb_query_pointer_cookie_t coord = xcb_query_pointer(dpy, scr->root);
   xcb_query_pointer_reply_t *poin = xcb_query_pointer_reply(dpy, coord, 0);
   uint32_t val[2] = {1, 3};
-  if ((values[2] == val[0]) && (win != 0)) {
-    xcb_get_geometry_cookie_t geom_now = xcb_get_geometry(dpy, win);
+  if ((values[2] == val[0]) && (focused != 0)) {
+    xcb_get_geometry_cookie_t geom_now = xcb_get_geometry(dpy, focused);
     xcb_get_geometry_reply_t *geom =
         xcb_get_geometry_reply(dpy, geom_now, NULL);
     values[0] = ((poin->root_x + geom->width + (2 * BORDER_WIDTH)) >
@@ -102,17 +102,17 @@ static void handleMotionNotify(xcb_generic_event_t *ev) {
          scr->height_in_pixels)
             ? (scr->height_in_pixels - geom->height - (2 * BORDER_WIDTH))
             : poin->root_y;
-    xcb_configure_window(dpy, win, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
-                         values);
-  } else if ((values[2] == val[1]) && (win != 0)) {
-    xcb_get_geometry_cookie_t geom_now = xcb_get_geometry(dpy, win);
+    xcb_configure_window(dpy, focused,
+                         XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
+  } else if ((values[2] == val[1]) && (focused != 0)) {
+    xcb_get_geometry_cookie_t geom_now = xcb_get_geometry(dpy, focused);
     xcb_get_geometry_reply_t *geom =
         xcb_get_geometry_reply(dpy, geom_now, NULL);
     if (!((poin->root_x <= geom->x) || (poin->root_y <= geom->y))) {
       values[0] = poin->root_x - geom->x - BORDER_WIDTH;
       values[1] = poin->root_y - geom->y - BORDER_WIDTH;
       if ((values[0] >= min_x) && (values[1] >= min_y)) {
-        xcb_configure_window(dpy, win,
+        xcb_configure_window(dpy, focused,
                              XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
                              values);
       }
@@ -176,7 +176,7 @@ static void setWindowPosition(xcb_window_t window) {
 static void handleKeyPress(xcb_generic_event_t *ev) {
   xcb_key_press_event_t *e = (xcb_key_press_event_t *)ev;
   xcb_keysym_t keysym = xcb_get_keysym(dpy, e->detail);
-  win = e->child;
+  focused = e->child;
   int key_table_size = sizeof(keys) / sizeof(*keys);
   for (int i = 0; i < key_table_size; ++i) {
     if ((keys[i].keysym == keysym) && (keys[i].mod == e->state)) {
@@ -225,7 +225,20 @@ static void handleMapRequest(xcb_generic_event_t *ev) {
   setFocus(e->window);
 }
 
-static void eventHandler(xcb_generic_event_t *ev) {
+static handler_func_t handler_funs[] = {
+    {XCB_MOTION_NOTIFY, handleMotionNotify},
+    {XCB_ENTER_NOTIFY, handleEnterNotify},
+    {XCB_LEAVE_NOTIFY, handleLeaveNotify},
+    {XCB_DESTROY_NOTIFY, handleDestroyNotify},
+    {XCB_BUTTON_PRESS, handle_button_press},
+    {XCB_BUTTON_RELEASE, handleButtonRelease},
+    {XCB_KEY_PRESS, handleKeyPress},
+    {XCB_MAP_REQUEST, handleMapRequest},
+    {XCB_FOCUS_IN, handleFocusIn},
+    {XCB_FOCUS_OUT, handleFocusOut},
+    {XCB_NONE, NULL}};
+
+static void handle_event(xcb_generic_event_t *ev) {
   handler_func_t *handler;
   for (handler = handler_funs; handler->func != NULL; handler++) {
     if ((ev->response_type & ~0x80) == handler->request) {
@@ -240,7 +253,7 @@ static void setup() {
   uint32_t values[] = {ROOT_EVENT_MASK};
   xcb_change_window_attributes(dpy, scr->root, XCB_CW_EVENT_MASK, values);
 
-  // grab keys as defined in the config
+  // grab keys
   xcb_ungrab_key(dpy, XCB_GRAB_ANY, scr->root, XCB_MOD_MASK_ANY);
   for (int i = 0; i < SIZEOF(keys); ++i) {
     keycode = xcb_get_keycode(dpy, keys[i].keysym);
@@ -251,7 +264,7 @@ static void setup() {
     }
   }
 
-  /* grab buttons */
+  // grab buttons
 #define GRAB(b)                                                                \
   xcb_grab_button(dpy, false, scr->root,                                       \
                   XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE, \
@@ -280,7 +293,7 @@ int main() {
     xcb_generic_event_t *ev;
 
     if ((ev = xcb_wait_for_event(dpy)) != NULL) {
-      eventHandler(ev);
+      handle_event(ev);
       free(ev);
     }
 

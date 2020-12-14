@@ -4,7 +4,7 @@ make
 # make debug
 
 D=${D:-80}
-Xephyr -screen 1200x800 :$D&
+Xephyr -br -ac -noreset -screen 1200x800 :$D&
 sleep 1
 
 export DISPLAY=:$D

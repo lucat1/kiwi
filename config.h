@@ -1,6 +1,9 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+#define desktops 5
+
+#include "data.h"
 #include "kiwi.h"
 #include <X11/keysym.h>
 #include <xcb/xcb_keysyms.h>
@@ -28,8 +31,6 @@
  * be terminated by a NULL pointer.
  */
 
-#define desktops 5
-
 static char *termcmd[] = {"st", NULL};
 static char *menucmd[] = {"dmenu_run", NULL};
 
@@ -38,9 +39,9 @@ static char *menucmd[] = {"dmenu_run", NULL};
  * definitions, refer to the keysymdef.h and XF86keysym.h headers.
  */
 
-static Key keys[] = {{MODKEY, XK_Return, spawn, termcmd},
-                     {MODKEY, XK_space, spawn, menucmd},
-                     {MODKEY, XK_w, killclient, NULL},
-                     {MODKEY | XCB_MOD_MASK_SHIFT, XK_q, closewm, NULL}};
+static kiwi_key_t keys[] = {{MODKEY, XK_Return, spawn, termcmd},
+                            {MODKEY, XK_space, spawn, menucmd},
+                            {MODKEY, XK_w, killclient, NULL},
+                            {MODKEY | XCB_MOD_MASK_SHIFT, XK_q, closewm, NULL}};
 
 #endif // CONFIG_H
