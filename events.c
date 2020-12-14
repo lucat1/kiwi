@@ -6,6 +6,22 @@
 #include <xcb/xcb.h>
 #include <xcb/xproto.h>
 
+void (*events[XCB_NO_OPERATION])(xcb_generic_event_t *e) = {
+    [XCB_MAP_REQUEST] = handle_map_request,
+    [XCB_DESTROY_NOTIFY] = handle_destroy_notify,
+    [XCB_BUTTON_PRESS] = handle_button_press,
+    [XCB_MOTION_NOTIFY] = handle_motion_notify,
+    [XCB_BUTTON_RELEASE] = handle_button_release,
+
+    [XCB_ENTER_NOTIFY] = handle_enter_notify,
+    [XCB_LEAVE_NOTIFY] = handle_leave_notify,
+
+    [XCB_FOCUS_IN] = handle_focus_in,
+    [XCB_FOCUS_OUT] = handle_focus_out,
+
+    [XCB_KEY_PRESS] = handle_key_press,
+};
+
 static uint32_t values[3];
 static uint32_t min_x = WINDOW_MIN_X;
 static uint32_t min_y = WINDOW_MIN_Y;

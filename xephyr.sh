@@ -8,5 +8,5 @@ sleep 1
 
 export DISPLAY=:$D
 
-# ./kiwi
-gdb -r ./kiwi 
+./kiwi
+# gdb -r ./kiwi 
