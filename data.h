@@ -54,8 +54,4 @@ struct handler_func {
   void (*func)(xcb_generic_event_t *ev);
 };
 
-static desktop_t *kiwi_desktops;
-static xcb_connection_t *dpy; // the X display
-static xcb_screen_t *scr;
-
 #endif // DATA_H
