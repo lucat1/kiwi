@@ -1,11 +1,12 @@
 #ifndef DATA_H
 #define DATA_H
+
 #include <xcb/xcb.h>
 
 typedef struct client client_t;
 typedef struct layout layout_t;
 typedef struct desktop desktop_t;
-typedef struct kiwi_key kiwi_key_t;
+typedef struct keybind keybind_t;
 typedef struct handler_func handler_func_t;
 
 enum split_direction { SPLIT_VERTICAL, SPLIT_HORIZONTAL };
@@ -46,7 +47,7 @@ struct desktop {
   struct desktop *next;
 };
 
-struct kiwi_key {
+struct keybind {
   unsigned int mod;
   xcb_keysym_t keysym;
   void (*func)(char **com);
@@ -60,25 +61,31 @@ struct handler_func {
 
 #define PUSHD(n, t) t *push_##n(t *head, t *n);
 #define UNSHIFTD(n, t) t *unshift_##n(t *head, t *n);
+#define REMOVED(n, t) t *remove_##n(t *iter, t *n);
 #define FREED(n, t) void free_##n(t *list);
 #define SIZED(n, t) int size_##n(t *list);
 
 PUSHD(client, client_t)
 UNSHIFTD(client, client_t)
+REMOVED(client, client_t)
 FREED(clients, client_t)
 SIZED(clients, client_t)
 
 PUSHD(desktop, desktop_t)
 UNSHIFTD(desktop, desktop_t)
+REMOVED(desktop, desktop_t)
 FREED(desktops, desktop_t)
 SIZED(desktops, desktop_t)
 
 #undef PUSHD
 #undef UNSHIFTD
+#undef REMOVE
+#undef PREPENDD
 #undef FREED
 #undef SIZED
 
 client_t *new_client(xcb_window_t w);
+client_t *get_client(xcb_window_t w);
 desktop_t *new_desktop(layout_t l);
 
 #endif // DATA_H

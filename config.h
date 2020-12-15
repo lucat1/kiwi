@@ -1,10 +1,9 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#include "layouts.h"
-
 #include "data.h"
 #include "kiwi.h"
+#include "layouts.h"
 #include <X11/keysym.h>
 #include <xcb/xcb_keysyms.h>
 
@@ -57,9 +56,9 @@ static char *menucmd[] = {"dmenu_run", NULL};
  * definitions, refer to the keysymdef.h and XF86keysym.h headers.
  */
 
-static kiwi_key_t keys[] = {{MODKEY, XK_Return, spawn, termcmd},
-                            {MODKEY, XK_space, spawn, menucmd},
-                            {MODKEY, XK_w, killclient, NULL},
-                            {MODKEY | XCB_MOD_MASK_SHIFT, XK_q, closewm, NULL}};
+static keybind_t keys[] = {{MODKEY, XK_Return, spawn, termcmd},
+                           {MODKEY, XK_space, spawn, menucmd},
+                           {MODKEY, XK_w, killclient, NULL},
+                           {MODKEY | XCB_MOD_MASK_SHIFT, XK_q, closewm, NULL}};
 
 #endif // CONFIG_H

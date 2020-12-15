@@ -19,11 +19,11 @@ desktop_t *desktops = NULL;
 desktop_t *focused_desktop = NULL;
 xcb_connection_t *dpy = NULL;
 xcb_screen_t *scr = NULL;
-xcb_window_t focused = 0;
 
 void killclient(char **com) {
   UNUSED(com);
-  xcb_kill_client(dpy, focused);
+  if (focused_desktop->focused != NULL)
+    xcb_kill_client(dpy, focused_desktop->focused->window);
 }
 
 void closewm(char **com) {
@@ -48,15 +48,20 @@ void spawn(char **com) {
   wait(NULL);
 }
 
-void setFocus(xcb_drawable_t window) {
-  if ((window != 0) && (window != scr->root)) {
-    xcb_set_input_focus(dpy, XCB_INPUT_FOCUS_POINTER_ROOT, window,
+void focus_client(client_t *c) {
+  if (c == NULL)
+    return;
+
+  if ((c->window != 0) && (c->window != scr->root)) {
+    xcb_set_input_focus(dpy, XCB_INPUT_FOCUS_POINTER_ROOT, c->window,
                         XCB_CURRENT_TIME);
-    focused = window;
+
+    // set the focused client value
+    focused_desktop->focused = c;
 
     // move the focused window above all others
     static const uint32_t v[] = {XCB_STACK_MODE_ABOVE};
-    xcb_configure_window(dpy, window, XCB_CONFIG_WINDOW_STACK_MODE, v);
+    xcb_configure_window(dpy, c->window, XCB_CONFIG_WINDOW_STACK_MODE, v);
     xcb_flush(dpy);
   }
 }
