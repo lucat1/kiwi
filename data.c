@@ -8,19 +8,16 @@
 // pushes the new list at the end of the `head` list
 // it allows to push into an empty head
 #define PUSH(n, t)                                                             \
-  t *push_##n(t *head, t *n) {                                                 \
-    t *res = head, *tail = NULL;                                               \
-    while (head != NULL) {                                                     \
-      tail = head;                                                             \
-      head = head->next;                                                       \
+  t *push_##n(t *iter, t *n) {                                                 \
+    if (iter == NULL)                                                          \
+      return n;                                                                \
+                                                                               \
+    t *head = iter;                                                            \
+    while (iter->next != NULL) {                                               \
+      iter = iter->next;                                                       \
     }                                                                          \
-                                                                               \
-    if (tail != NULL)                                                          \
-      tail->next = n;                                                          \
-    else                                                                       \
-      res = n;                                                                 \
-                                                                               \
-    return res;                                                                \
+    iter->next = n;                                                            \
+    return head;                                                               \
   }
 
 // append a new list at the beginning of a list

@@ -16,7 +16,8 @@ static void tiling_reposition(desktop_t *desk) {
 
   client_t *c = desk->clients;
   while (c->next != NULL) {
+    c = c->next;
   }
 
-  c = c->next;
+  /* c = c->next; */
 }

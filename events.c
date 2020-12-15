@@ -76,7 +76,6 @@ void handle_button_press(xcb_generic_event_t *ev) {
 
   if (e->detail == 1) {
     values[2] = 1;
-    msg("scr: %p, geom: %p", scr, geom);
     xcb_warp_pointer(dpy, XCB_NONE, scr->root, 0, 0, 0, 0, geom->x, geom->y);
   } else if (focused != 0) {
     values[2] = 3;
