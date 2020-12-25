@@ -46,7 +46,7 @@
 #define WINDOW_Y 400
 #define WINDOW_MIN_X 60
 #define WINDOW_MIN_Y 40
-#define BORDER_WIDTH 1                  /* 0 = no border effect */
+#define BORDER_WIDTH 0                  /* 0 = no border effect */
 #define BORDER_COLOR_UNFOCUSED 0x696969 /* 0xRRGGBB */
 #define BORDER_COLOR_FOCUSED 0xFFFFFF   /* 0xRRGGBB */
 

@@ -62,26 +62,27 @@ void move_rel(FN_ARG arg) {
 }
 
 void focus_client(client_t *c) {
-  if (c == NULL)
+  if (c == NULL || focdesk->focused == c ||
+      c->window == 0 && c->window == scr->root)
     return;
 
-  if (c->window != 0 && c->window != scr->root) {
-    xcb_set_input_focus(dpy, XCB_INPUT_FOCUS_POINTER_ROOT, c->window,
-                        XCB_CURRENT_TIME);
+  msg("focusing client %d", c);
 
-    // set the focused client value
-    focdesk->focused = c;
-    // push the client to the focus list if we have an empty one or
-    // the client isn't already at the top of it
-    if ((focdesk->focus_stack != NULL && focdesk->focus_stack->value != c) ||
-        focdesk->focus_stack == NULL)
-      stack_push(&focdesk->focus_stack, c);
+  // set the focused client value
+  focdesk->focused = c;
+  // push the client to the focus list if we have an empty one or
+  // the client isn't already at the top of it
+  /* if ((focdesk->focus_stack != NULL && focdesk->focus_stack->value != c) ||
+   */
+  /*     focdesk->focus_stack == NULL) */
+  stack_push(&focdesk->focus_stack, c);
 
-    // move the focused window above all others
-    static const uint32_t v[] = {XCB_STACK_MODE_ABOVE};
-    xcb_configure_window(dpy, c->window, XCB_CONFIG_WINDOW_STACK_MODE, v);
-    xcb_flush(dpy);
-  }
+  // move the focused window above all others
+  static const uint32_t v[] = {XCB_STACK_MODE_ABOVE};
+  xcb_configure_window(dpy, c->window, XCB_CONFIG_WINDOW_STACK_MODE, v);
+  xcb_set_input_focus(dpy, XCB_INPUT_FOCUS_POINTER_ROOT, c->window,
+                      XCB_CURRENT_TIME);
+  xcb_flush(dpy);
 }
 
 void move_client(client_t *c, int16_t x, int16_t y, bool save) {
@@ -106,6 +107,22 @@ void resize_client(client_t *c, uint16_t width, uint16_t height) {
   uint32_t values[2] = {width, height};
   xcb_configure_window(dpy, c->window,
                        XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
+                       values);
+}
+
+void move_resize_client(client_t *c, int16_t x, int16_t y, uint16_t width,
+                        uint16_t height) {
+  if (c == NULL)
+    return;
+
+  c->x = x;
+  c->y = y;
+  c->w = width;
+  c->h = height;
+  uint32_t values[4] = {x, y, width, height};
+  xcb_configure_window(dpy, c->window,
+                       XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y |
+                           XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
                        values);
 }
 
@@ -245,9 +262,9 @@ int main() {
         events[type](ev);
 #ifdef DEBUG
       else
-        msg("unhandled event: %s", xcb_event_str(type));
+      /* msg("unhandled event: %s", xcb_event_str(type)); */
 #endif // DEBUG
-      free(ev);
+        free(ev);
     }
 
     if (xcb_has_error(dpy))

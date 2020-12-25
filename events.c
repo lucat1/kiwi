@@ -179,7 +179,6 @@ void handle_focus_out(xcb_generic_event_t *ev) {
 void handle_key_press(xcb_generic_event_t *ev) {
   xcb_key_press_event_t *e = (xcb_key_press_event_t *)ev;
   client_t *c = get_client(e->child);
-  focus_client(c);
 
   xcb_keysym_t keysym = xcb_get_keysym(dpy, e->detail);
   int key_table_size = sizeof(keys) / sizeof(*keys);

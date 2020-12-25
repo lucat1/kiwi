@@ -25,6 +25,8 @@ void move_rel(FN_ARG arg);
 void focus_client(client_t *c);
 void move_client(client_t *c, int16_t x, int16_t y, bool save);
 void resize_client(client_t *c, uint16_t width, uint16_t height);
+void move_resize_client(client_t *c, int16_t x, int16_t y, uint16_t width,
+                        uint16_t height);
 void hide_client(client_t *c);
 void show_client(client_t *c);
 void focus_desktop(desktop_t *desk);
