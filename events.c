@@ -16,6 +16,7 @@ void (*events[XCB_NO_OPERATION])(xcb_generic_event_t *e) = {
 
     [XCB_BUTTON_PRESS] = handle_button_press,
     [XCB_MOTION_NOTIFY] = handle_motion_notify,
+    [XCB_CONFIGURE_NOTIFY] = handle_configure_notify,
     [XCB_BUTTON_RELEASE] = handle_button_release,
 
 #if FOCUS_TYPE
@@ -36,6 +37,8 @@ void handle_create_notify(xcb_generic_event_t *ev) {
   xcb_create_notify_event_t *e = (xcb_create_notify_event_t *)ev;
   client_t *c = new_client(e->window);
   list_append(&focdesk->clients, c);
+  msg("added client to %p(%d), now at %d", focdesk, focdesk->i,
+      list_size(focdesk->clients));
 }
 
 void handle_map_request(xcb_generic_event_t *ev) {
@@ -95,10 +98,10 @@ void handle_button_press(xcb_generic_event_t *ev) {
   xcb_get_geometry_reply_t *geom = xcb_geometry(dpy, c->window);
 
   if (e->detail == 1) {
-    values[2] = 1;
+    c->motion = MOTION_RESIZING;
     xcb_warp_pointer(dpy, XCB_NONE, scr->root, 0, 0, 0, 0, geom->x, geom->y);
   } else {
-    values[2] = 3;
+    c->motion = MOTION_DRAGGING;
     xcb_warp_pointer(dpy, XCB_NONE, scr->root, 0, 0, 0, 0,
                      geom->x + geom->width, geom->y + geom->height);
   }
@@ -114,44 +117,47 @@ void handle_button_press(xcb_generic_event_t *ev) {
 
 void handle_motion_notify(xcb_generic_event_t *ev) {
   UNUSED(ev);
+  client_t *c = focdesk->focused;
   xcb_query_pointer_cookie_t coord = xcb_query_pointer(dpy, scr->root);
   xcb_query_pointer_reply_t *poin = xcb_query_pointer_reply(dpy, coord, 0);
-  uint32_t val[2] = {1, 3};
-  if ((values[2] == val[0]) && (focdesk->focused->window != 0)) {
-    xcb_get_geometry_cookie_t geom_now =
-        xcb_get_geometry(dpy, focdesk->focused->window);
-    xcb_get_geometry_reply_t *geom =
-        xcb_get_geometry_reply(dpy, geom_now, NULL);
-    values[0] = ((poin->root_x + geom->width + (2 * BORDER_WIDTH)) >
-                 scr->width_in_pixels)
-                    ? (scr->width_in_pixels - geom->width - (2 * BORDER_WIDTH))
-                    : poin->root_x;
-    values[1] =
-        ((poin->root_y + geom->height + (2 * BORDER_WIDTH)) >
-         scr->height_in_pixels)
-            ? (scr->height_in_pixels - geom->height - (2 * BORDER_WIDTH))
+  if (c->motion == MOTION_RESIZING) {
+    int16_t x =
+        ((poin->root_x + c->w + (2 * BORDER_WIDTH)) > scr->width_in_pixels)
+            ? (scr->width_in_pixels - c->w - (2 * BORDER_WIDTH))
+            : poin->root_x;
+    int16_t y =
+        ((poin->root_y + c->h + (2 * BORDER_WIDTH)) > scr->height_in_pixels)
+            ? (scr->height_in_pixels - c->h - (2 * BORDER_WIDTH))
             : poin->root_y;
-    xcb_configure_window(dpy, focdesk->focused->window,
-                         XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
-  } else if ((values[2] == val[1]) && (focdesk->focused->window != 0)) {
-    xcb_get_geometry_cookie_t geom_now =
-        xcb_get_geometry(dpy, focdesk->focused->window);
-    xcb_get_geometry_reply_t *geom =
-        xcb_get_geometry_reply(dpy, geom_now, NULL);
-    if (!((poin->root_x <= geom->x) || (poin->root_y <= geom->y))) {
-      values[0] = poin->root_x - geom->x - BORDER_WIDTH;
-      values[1] = poin->root_y - geom->y - BORDER_WIDTH;
-      if ((values[0] >= min_x) && (values[1] >= min_y)) {
-        xcb_configure_window(dpy, focdesk->focused->window,
-                             XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
-                             values);
+    move_client(c, x, y);
+  } else if (c->motion == MOTION_DRAGGING) {
+    if (!((poin->root_x <= c->x) || (poin->root_y <= c->y))) {
+      uint16_t width = poin->root_x - c->x - BORDER_WIDTH;
+      uint16_t height = poin->root_y - c->y - BORDER_WIDTH;
+      if (width >= min_x && height >= min_y) {
+        resize_client(c, width, height);
       }
     }
   }
 }
 
+void handle_configure_notify(xcb_generic_event_t *ev) {
+  xcb_configure_notify_event_t *e = (xcb_configure_notify_event_t *)ev;
+  client_t *c = get_client(e->window);
+  if (c == NULL || c->motion != MOTION_NONE)
+    return;
+
+  c->x = e->x;
+  c->y = e->y;
+  c->w = e->width;
+  c->h = e->height;
+}
+
 void handle_button_release(xcb_generic_event_t *ev) {
   UNUSED(ev);
+  if (focdesk->focused != NULL)
+    focdesk->focused->motion = MOTION_NONE;
+
   xcb_ungrab_pointer(dpy, XCB_CURRENT_TIME);
 }
 

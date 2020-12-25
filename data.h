@@ -3,6 +3,7 @@
 
 #include "list.h"
 #include "stack.h"
+#include <stdbool.h>
 #include <xcb/xcb.h>
 
 typedef struct client client_t;
@@ -12,11 +13,15 @@ typedef struct keybind keybind_t;
 typedef struct handler_func handler_func_t;
 
 enum split_direction { SPLIT_VERTICAL, SPLIT_HORIZONTAL };
+enum motion_type { MOTION_NONE, MOTION_DRAGGING, MOTION_RESIZING };
 
 struct client {
   xcb_window_t window;
   float split_ratio;
   enum split_direction split_direction;
+  enum motion_type motion;
+  int16_t x, y;
+  uint16_t w, h;
 };
 
 enum layout_type { LAYOUT_TILING, LAYOUT_FLOATING };
@@ -30,11 +35,6 @@ struct layout {
   void (*move_right)(desktop_t *d);
   void (*move_bottom)(desktop_t *d);
   void (*move_top)(desktop_t *d);
-
-  void (*send_left)(desktop_t *d);
-  void (*send_right)(desktop_t *d);
-  void (*send_bottom)(desktop_t *d);
-  void (*send_top)(desktop_t *d);
 };
 
 struct desktop {
@@ -62,6 +62,7 @@ struct handler_func {
 client_t *new_client(xcb_window_t w);
 client_t *get_client(xcb_window_t w);
 desktop_t *new_desktop(layout_t l);
+desktop_t *get_desktop(int i);
 void free_desktop(desktop_t *list);
 
 #endif // DATA_H

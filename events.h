@@ -11,6 +11,7 @@ void handle_destroy_notify(xcb_generic_event_t *ev);
 
 void handle_button_press(xcb_generic_event_t *ev);
 void handle_motion_notify(xcb_generic_event_t *ev);
+void handle_configure_notify(xcb_generic_event_t *ev);
 void handle_button_release(xcb_generic_event_t *ev);
 
 void handle_enter_notify(xcb_generic_event_t *ev);

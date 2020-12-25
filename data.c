@@ -18,7 +18,15 @@ client_t *new_client(xcb_window_t w) {
   c->window = w;
   c->split_ratio = SPLIT_RATIO;
   c->split_direction = SPLIT_DIRECTION;
+  c->motion = MOTION_NONE;
 
+  xcb_get_geometry_reply_t *geom = xcb_geometry(dpy, w);
+  c->x = (scr->width_in_pixels - geom->width) / 2;
+  c->y = (scr->height_in_pixels - geom->height) / 2;
+  c->w = geom->width;
+  c->h = geom->height;
+
+  free(geom);
   return c;
 }
 
@@ -51,6 +59,19 @@ desktop_t *new_desktop(layout_t l) {
   desk->focus_stack = NULL;
 
   return desk;
+}
+
+desktop_t *get_desktop(int i) {
+  list_t *diter = desktops;
+  while (diter != NULL) {
+    desktop_t *desk = (desktop_t *)diter->value;
+    if (desk->i == i)
+      return desk;
+
+    diter = diter->next;
+  }
+
+  return NULL;
 }
 
 void free_desktop(desktop_t *list) { stack_free(list->focus_stack); }

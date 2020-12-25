@@ -20,15 +20,22 @@
 // (1) focus follows pointer
 #define FOCUS_TYPE 0
 
+// amount of default desktops to create when the wm starts up
+// NOTE: must be >= 1
+#define DEFAULT_DESKTOPS 1
+
+// follow sent windows to their new desktops
+#define FOLLOW_SEND 1
+
+// creates the destination desktop if it doesn't exist
+#define CREATE_DESKTOP_IF_NOT_EXISTS 1
+
 // split ratio - how to divide the screen in tiling mode
 #define SPLIT_RATIO .6f
 // default split direction for new windows. could be as follows
 // - SPLIT_VERTICAL
 // - SPLIT_HORIZONTAL
 #define SPLIT_DIRECTION SPLIT_VERTICAL
-
-// amount of default desktops to create when the wm starts up
-#define DEFAULT_DESKTOPS 1
 
 /* DEFAULT WINDOW PROPERTIES
  * The following parameters can be used to change existing and new
@@ -59,9 +66,12 @@ static const char *menucmd[] = {"dmenu_run", NULL};
  * definitions, refer to the keysymdef.h and XF86keysym.h headers.
  */
 
-static keybind_t keys[] = {{MODKEY, XK_Return, spawn, termcmd},
-                           {MODKEY, XK_space, spawn, menucmd},
-                           {MODKEY, XK_w, killclient, NULL},
-                           {MODKEY | XCB_MOD_MASK_SHIFT, XK_q, closewm, NULL}};
+static keybind_t keys[] = {
+    {MODKEY, XK_Return, spawn, termcmd},
+    {MODKEY, XK_space, spawn, menucmd},
+    {MODKEY, XK_w, killclient, NULL},
+    {MODKEY | XCB_MOD_MASK_SHIFT, XK_l, send_forwards, NULL},
+    {MODKEY | XCB_MOD_MASK_SHIFT, XK_h, send_backwards, NULL},
+    {MODKEY | XCB_MOD_MASK_SHIFT, XK_q, closewm, NULL}};
 
 #endif // CONFIG_H

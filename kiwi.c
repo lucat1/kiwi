@@ -48,6 +48,16 @@ void spawn(const char **com) {
   wait(NULL);
 }
 
+void send_forwards(const char **u) {
+  UNUSED(u);
+  send_to(focdesk->focused, focdesk->i + 1);
+}
+
+void send_backwards(const char **u) {
+  UNUSED(u);
+  send_to(focdesk->focused, focdesk->i - 1);
+}
+
 void focus_client(client_t *c) {
   if (c == NULL)
     return;
@@ -69,6 +79,70 @@ void focus_client(client_t *c) {
     xcb_configure_window(dpy, c->window, XCB_CONFIG_WINDOW_STACK_MODE, v);
     xcb_flush(dpy);
   }
+}
+
+void move_client(client_t *c, int16_t x, int16_t y) {
+  if (c == NULL)
+    return;
+
+  c->x = x;
+  c->y = y;
+  uint32_t values[2] = {x, y};
+  xcb_configure_window(dpy, c->window,
+                       XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
+}
+
+void resize_client(client_t *c, uint16_t width, uint16_t height) {
+  if (c == NULL)
+    return;
+
+  c->w = width;
+  c->h = height;
+  uint32_t values[2] = {width, height};
+  xcb_configure_window(dpy, c->window,
+                       XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
+                       values);
+}
+
+void hide_client(client_t *c) {
+  move_client(c, scr->width_in_pixels, scr->height_in_pixels);
+}
+
+void show_client(client_t *c) { move_client(c, c->x, c->y); }
+
+void send_to(client_t *c, int i) {
+  if (i < 0 || c == NULL)
+    return;
+
+  desktop_t *desk = get_desktop(i);
+  if (desk == NULL) {
+#if CREATE_DESKTOP_IF_NOT_EXISTS
+    while (list_size(desktops) < i) {
+      list_append(&desktops, new_desktop(DEFAULT_LAYOUT));
+    }
+    msg("ADDED DESKTOPS");
+    desk = new_desktop(DEFAULT_LAYOUT);
+    list_append(&desktops, desk);
+#else
+    return;
+#endif
+  }
+
+  list_remove(&focdesk->clients, c);
+  hide_client(c);
+  list_append(&desk->clients, c);
+#if FOLLOW_SEND
+  focus_desktop(desk);
+#endif
+}
+
+void focus_desktop(desktop_t *desk) {
+  list_t *iter = focdesk->clients;
+  while (iter != NULL) {
+    hide_client(iter->value);
+  }
+  focdesk = desk;
+  focdesk->layout.reposition(focdesk);
 }
 
 void setBorderColor(xcb_window_t window, int focus) {
@@ -118,9 +192,10 @@ static void setup() {
 
   xcb_flush(dpy);
 
-  // setup the first desktop
-  focdesk = new_desktop(DEFAULT_LAYOUT);
-  list_append(&desktops, focdesk);
+  // setup the the default desktops
+  for (int i = 0; i < DEFAULT_DESKTOPS; i++)
+    list_append(&desktops, new_desktop(DEFAULT_LAYOUT));
+  focdesk = desktops->value; // focus the first desktop
 }
 
 void clean() {
