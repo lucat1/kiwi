@@ -66,12 +66,22 @@ static const char *menucmd[] = {"dmenu_run", NULL};
  * definitions, refer to the keysymdef.h and XF86keysym.h headers.
  */
 
+#define WS(k, n)                                                               \
+  {MODKEY, k, move_to, {.i = n}},                                              \
+      {MODKEY | XCB_MOD_MASK_SHIFT, k, send_to, {.i = n}},
 static keybind_t keys[] = {
-    {MODKEY, XK_Return, spawn, termcmd},
-    {MODKEY, XK_space, spawn, menucmd},
+    {MODKEY, XK_Return, spawn, {.v = termcmd}},
+    {MODKEY, XK_space, spawn, {.v = menucmd}},
     {MODKEY, XK_w, killclient, NULL},
-    {MODKEY | XCB_MOD_MASK_SHIFT, XK_l, send_forwards, NULL},
-    {MODKEY | XCB_MOD_MASK_SHIFT, XK_h, send_backwards, NULL},
-    {MODKEY | XCB_MOD_MASK_SHIFT, XK_q, closewm, NULL}};
+
+    {MODKEY, XK_l, move_rel, {.i = 1}},
+    {MODKEY, XK_h, move_rel, {.i = -1}},
+    {MODKEY | XCB_MOD_MASK_SHIFT, XK_l, send_rel, {.i = 1}},
+    {MODKEY | XCB_MOD_MASK_SHIFT, XK_h, send_rel, {.i = -1}},
+
+    WS(XK_1, 0) WS(XK_2, 1) WS(XK_3, 2) WS(XK_4, 3) WS(XK_5, 4)
+
+        {MODKEY | XCB_MOD_MASK_SHIFT, XK_q, closewm, NULL},
+};
 
 #endif // CONFIG_H

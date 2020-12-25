@@ -20,20 +20,20 @@ desktop_t *focdesk = NULL;
 xcb_connection_t *dpy = NULL;
 xcb_screen_t *scr = NULL;
 
-void killclient(const char **com) {
-  UNUSED(com);
+void killclient(FN_ARG arg) {
+  UNUSED(arg);
   if (focdesk->focused != NULL)
     xcb_kill_client(dpy, focdesk->focused->window);
 }
 
-void closewm(const char **com) {
-  UNUSED(com);
+void closewm(FN_ARG arg) {
+  UNUSED(arg);
   if (dpy != NULL) {
     xcb_disconnect(dpy);
   }
 }
 
-void spawn(const char **com) {
+void spawn(FN_ARG arg) {
   if (fork() == 0) {
     if (dpy != NULL) {
       close(scr->root);
@@ -42,20 +42,23 @@ void spawn(const char **com) {
     if (fork() != 0) {
       exit(0);
     }
-    execvp((char *)com[0], (char **)com);
+    execvp((char *)arg.v[0], (char **)arg.v);
     exit(0);
   }
   wait(NULL);
 }
 
-void send_forwards(const char **u) {
-  UNUSED(u);
-  send_to(focdesk->focused, focdesk->i + 1);
-}
+void send_to(FN_ARG arg) { send_client(focdesk->focused, arg.i); }
+void send_rel(FN_ARG arg) { send_client(focdesk->focused, focdesk->i + arg.i); }
 
-void send_backwards(const char **u) {
-  UNUSED(u);
-  send_to(focdesk->focused, focdesk->i - 1);
+void move_to(FN_ARG arg) {
+  desktop_t *desk = get_desktop(arg.i);
+  if (desk != NULL)
+    focus_desktop(desk);
+}
+void move_rel(FN_ARG arg) {
+  FN_ARG a = {.i = focdesk->i + arg.i};
+  move_to(a);
 }
 
 void focus_client(client_t *c) {
@@ -116,11 +119,10 @@ void show_client(client_t *c) {
   move_client(c, c->x, c->y, false);
 }
 
-void send_to(client_t *c, int i) {
+void send_client(client_t *c, int i) {
   if (i < 0 || c == NULL)
     return;
 
-  msg("moving to desktop %d", i);
   desktop_t *desk = get_desktop(i);
   if (desk == NULL)
 #if CREATE_DESKTOP_IF_NOT_EXISTS
@@ -131,7 +133,6 @@ void send_to(client_t *c, int i) {
 #else
     return;
 #endif
-  msg("now we got %d", list_size(desktops));
 
   // remove it from the old workspace and refocus
   list_remove(&focdesk->clients, c);
@@ -140,7 +141,6 @@ void send_to(client_t *c, int i) {
   // focus the new best client
   if (focdesk->focus_stack != NULL)
     focus_client((client_t *)focdesk->focus_stack->value);
-  msg("after");
 
   // push it to the new workspace
   list_append(&desk->clients, c);

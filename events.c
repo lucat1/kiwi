@@ -185,7 +185,7 @@ void handle_key_press(xcb_generic_event_t *ev) {
   int key_table_size = sizeof(keys) / sizeof(*keys);
   for (int i = 0; i < key_table_size; ++i) {
     if ((keys[i].keysym == keysym) && (keys[i].mod == e->state)) {
-      keys[i].func(keys[i].com);
+      keys[i].func(keys[i].arg);
     }
   }
 }

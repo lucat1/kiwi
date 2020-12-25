@@ -49,11 +49,18 @@ struct desktop {
   stack_t *focus_stack;
 };
 
+struct arg {
+  const int i;
+  const char **v;
+};
+
+#define FN_ARG const struct arg
+
 struct keybind {
   unsigned int mod;
   xcb_keysym_t keysym;
-  void (*func)(const char **com);
-  const char **com;
+  void (*func)(FN_ARG arg);
+  FN_ARG arg;
 };
 
 struct handler_func {
