@@ -4,6 +4,7 @@
 
 #include "data.h"
 #include "list.h"
+#include <stdbool.h>
 #include <xcb/xcb_keysyms.h>
 
 extern list_t *desktops;      // list of desktops
@@ -20,7 +21,7 @@ void send_backwards(const char **com);
 
 /* window behavior */
 void focus_client(client_t *c);
-void move_client(client_t *c, int16_t x, int16_t y);
+void move_client(client_t *c, int16_t x, int16_t y, bool save);
 void resize_client(client_t *c, uint16_t width, uint16_t height);
 void hide_client(client_t *c);
 void show_client(client_t *c);

@@ -13,6 +13,7 @@ typedef struct keybind keybind_t;
 typedef struct handler_func handler_func_t;
 
 enum split_direction { SPLIT_VERTICAL, SPLIT_HORIZONTAL };
+enum visibility { SHOWN, HIDDEN };
 enum motion_type { MOTION_NONE, MOTION_DRAGGING, MOTION_RESIZING };
 
 struct client {
@@ -20,6 +21,7 @@ struct client {
   float split_ratio;
   enum split_direction split_direction;
   enum motion_type motion;
+  enum visibility visibility;
   int16_t x, y;
   uint16_t w, h;
 };

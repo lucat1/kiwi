@@ -69,10 +69,11 @@ void handle_destroy_notify(xcb_generic_event_t *ev) {
   // discard any window information
   xcb_ungrab_button(dpy, XCB_BUTTON_INDEX_1, c->window, XCB_NONE);
   xcb_kill_client(dpy, c->window);
+
   list_remove(&focdesk->clients, c);
+  stack_remove(&focdesk->focus_stack, c);
 
   // focus the new best client
-  stack_remove(&focdesk->focus_stack, c);
   if (focdesk->focus_stack != NULL)
     focus_client((client_t *)focdesk->focus_stack->value);
 }
@@ -125,7 +126,7 @@ void handle_motion_notify(xcb_generic_event_t *ev) {
         ((poin->root_y + c->h + (2 * BORDER_WIDTH)) > scr->height_in_pixels)
             ? (scr->height_in_pixels - c->h - (2 * BORDER_WIDTH))
             : poin->root_y;
-    move_client(c, x, y);
+    move_client(c, x, y, true);
   } else if (c->motion == MOTION_DRAGGING) {
     if (!((poin->root_x <= c->x) || (poin->root_y <= c->y))) {
       uint16_t width = poin->root_x - c->x - BORDER_WIDTH;
@@ -140,7 +141,7 @@ void handle_motion_notify(xcb_generic_event_t *ev) {
 void handle_configure_notify(xcb_generic_event_t *ev) {
   xcb_configure_notify_event_t *e = (xcb_configure_notify_event_t *)ev;
   client_t *c = get_client(e->window);
-  if (c == NULL || c->motion != MOTION_NONE)
+  if (c == NULL || c->motion != MOTION_NONE || c->visibility == HIDDEN)
     return;
 
   c->x = e->x;

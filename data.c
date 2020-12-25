@@ -18,6 +18,7 @@ client_t *new_client(xcb_window_t w) {
   c->window = w;
   c->split_ratio = SPLIT_RATIO;
   c->split_direction = SPLIT_DIRECTION;
+  c->visibility = SHOWN;
   c->motion = MOTION_NONE;
 
   xcb_get_geometry_reply_t *geom = xcb_geometry(dpy, w);

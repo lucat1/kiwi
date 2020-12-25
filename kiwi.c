@@ -81,12 +81,14 @@ void focus_client(client_t *c) {
   }
 }
 
-void move_client(client_t *c, int16_t x, int16_t y) {
+void move_client(client_t *c, int16_t x, int16_t y, bool save) {
   if (c == NULL)
     return;
 
-  c->x = x;
-  c->y = y;
+  if (save) {
+    c->x = x;
+    c->y = y;
+  }
   uint32_t values[2] = {x, y};
   xcb_configure_window(dpy, c->window,
                        XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
@@ -105,31 +107,42 @@ void resize_client(client_t *c, uint16_t width, uint16_t height) {
 }
 
 void hide_client(client_t *c) {
-  move_client(c, scr->width_in_pixels, scr->height_in_pixels);
+  c->visibility = HIDDEN;
+  move_client(c, scr->width_in_pixels, scr->height_in_pixels, false);
 }
 
-void show_client(client_t *c) { move_client(c, c->x, c->y); }
+void show_client(client_t *c) {
+  c->visibility = SHOWN;
+  move_client(c, c->x, c->y, false);
+}
 
 void send_to(client_t *c, int i) {
   if (i < 0 || c == NULL)
     return;
 
+  msg("moving to desktop %d", i);
   desktop_t *desk = get_desktop(i);
-  if (desk == NULL) {
+  if (desk == NULL)
 #if CREATE_DESKTOP_IF_NOT_EXISTS
-    while (list_size(desktops) < i) {
-      list_append(&desktops, new_desktop(DEFAULT_LAYOUT));
+    while (list_size(desktops) <= i) {
+      desk = new_desktop(DEFAULT_LAYOUT);
+      list_append(&desktops, desk);
     }
-    msg("ADDED DESKTOPS");
-    desk = new_desktop(DEFAULT_LAYOUT);
-    list_append(&desktops, desk);
 #else
     return;
 #endif
-  }
+  msg("now we got %d", list_size(desktops));
 
+  // remove it from the old workspace and refocus
   list_remove(&focdesk->clients, c);
+  stack_remove(&focdesk->focus_stack, c);
   hide_client(c);
+  // focus the new best client
+  if (focdesk->focus_stack != NULL)
+    focus_client((client_t *)focdesk->focus_stack->value);
+  msg("after");
+
+  // push it to the new workspace
   list_append(&desk->clients, c);
 #if FOLLOW_SEND
   focus_desktop(desk);
@@ -140,7 +153,9 @@ void focus_desktop(desktop_t *desk) {
   list_t *iter = focdesk->clients;
   while (iter != NULL) {
     hide_client(iter->value);
+    iter = iter->next;
   }
+
   focdesk = desk;
   focdesk->layout.reposition(focdesk);
 }
