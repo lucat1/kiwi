@@ -5,6 +5,7 @@
 #include <X11/Xlib.h>
 #include <xcb/xcb.h>
 
+void handle_create_notify(xcb_generic_event_t *ev);
 void handle_map_request(xcb_generic_event_t *ev);
 void handle_destroy_notify(xcb_generic_event_t *ev);
 

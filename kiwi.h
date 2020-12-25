@@ -5,10 +5,10 @@
 #include "data.h"
 #include <xcb/xcb_keysyms.h>
 
-extern desktop_t *desktops;        // list of desktops
-extern desktop_t *focused_desktop; // the currently focused desktop
-extern xcb_connection_t *dpy;      // the X display
-extern xcb_screen_t *scr;          // the X screen (TODO: xinerama)
+extern desktop_t *desktops;   // list of desktops
+extern desktop_t *focdesk;    // the currently focused desktop
+extern xcb_connection_t *dpy; // the X display
+extern xcb_screen_t *scr;     // the X screen (TODO: xinerama)
 
 /* user defined command actions */
 void killclient(char **com);

@@ -137,6 +137,7 @@ desktop_t *new_desktop(layout_t l) {
   desk->layout = l;
   desk->clients = NULL;
   desk->focused = NULL;
+  desk->focus_stack = NULL;
   desk->next = NULL;
 
   return desk;

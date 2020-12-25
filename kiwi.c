@@ -16,14 +16,14 @@
    XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_BUTTON_PRESS)
 
 desktop_t *desktops = NULL;
-desktop_t *focused_desktop = NULL;
+desktop_t *focdesk = NULL;
 xcb_connection_t *dpy = NULL;
 xcb_screen_t *scr = NULL;
 
 void killclient(char **com) {
   UNUSED(com);
-  if (focused_desktop->focused != NULL)
-    xcb_kill_client(dpy, focused_desktop->focused->window);
+  if (focdesk->focused != NULL)
+    xcb_kill_client(dpy, focdesk->focused->window);
 }
 
 void closewm(char **com) {
@@ -52,12 +52,17 @@ void focus_client(client_t *c) {
   if (c == NULL)
     return;
 
-  if ((c->window != 0) && (c->window != scr->root)) {
+  if (c->window != 0 && c->window != scr->root) {
     xcb_set_input_focus(dpy, XCB_INPUT_FOCUS_POINTER_ROOT, c->window,
                         XCB_CURRENT_TIME);
 
     // set the focused client value
-    focused_desktop->focused = c;
+    focdesk->focused = c;
+    // push the client to the focus list if we have an empty one or
+    // the client isn't already at the top of it
+    if ((focdesk->focus_stack != NULL && focdesk->focus_stack->value != c) ||
+        focdesk->focus_stack == NULL)
+      stack_push(&focdesk->focus_stack, c);
 
     // move the focused window above all others
     static const uint32_t v[] = {XCB_STACK_MODE_ABOVE};
@@ -114,7 +119,7 @@ static void setup() {
   xcb_flush(dpy);
 
   // setup the first desktop
-  desktops = focused_desktop = new_desktop(DEFAULT_LAYOUT);
+  desktops = focdesk = new_desktop(DEFAULT_LAYOUT);
 }
 
 void clean() {

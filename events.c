@@ -9,6 +9,7 @@
 #include <xcb/xproto.h>
 
 void (*events[XCB_NO_OPERATION])(xcb_generic_event_t *e) = {
+    [XCB_CREATE_NOTIFY] = handle_create_notify,
     [XCB_MAP_REQUEST] = handle_map_request,
     [XCB_DESTROY_NOTIFY] = handle_destroy_notify,
 
@@ -30,6 +31,12 @@ static uint32_t values[3];
 static uint32_t min_x = WINDOW_MIN_X;
 static uint32_t min_y = WINDOW_MIN_Y;
 
+void handle_create_notify(xcb_generic_event_t *ev) {
+  xcb_create_notify_event_t *e = (xcb_create_notify_event_t *)ev;
+  client_t *c = new_client(e->window);
+  focdesk->clients = push_client(focdesk->clients, c);
+}
+
 void handle_map_request(xcb_generic_event_t *ev) {
   xcb_map_request_event_t *e = (xcb_map_request_event_t *)ev;
 
@@ -40,11 +47,10 @@ void handle_map_request(xcb_generic_event_t *ev) {
                   XCB_BUTTON_INDEX_1, XCB_NONE);
 #endif
 
-  client_t *c = new_client(e->window);
-  focused_desktop->clients = push_client(focused_desktop->clients, c);
+  client_t *c = get_client(e->window);
   xcb_map_window(dpy, c->window);
 
-  focused_desktop->layout.reposition(focused_desktop);
+  focdesk->layout.reposition(focdesk);
   setBorderWidth(c->window);
   values[0] = XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_FOCUS_CHANGE;
   xcb_change_window_attributes_checked(dpy, c->window, XCB_CW_EVENT_MASK,
@@ -59,13 +65,23 @@ void handle_destroy_notify(xcb_generic_event_t *ev) {
   // discard any window information
   xcb_ungrab_button(dpy, XCB_BUTTON_INDEX_1, c->window, XCB_NONE);
   xcb_kill_client(dpy, c->window);
-  focused_desktop->clients = remove_client(focused_desktop->clients, c);
+  focdesk->clients = remove_client(focdesk->clients, c);
+
+  // focus the new best client
+  stack_clean(&focdesk->focus_stack, c);
+  stack_t *i = focdesk->focus_stack;
+  while (i != NULL) {
+    printf("stack ele: %p\n", i->value);
+    i = i->prev;
+  }
+  if (focdesk->focus_stack != NULL)
+    focus_client((client_t *)focdesk->focus_stack->value);
 }
 
 void handle_button_press(xcb_generic_event_t *ev) {
   xcb_button_press_event_t *e = (xcb_button_press_event_t *)ev;
   client_t *c = get_client(e->state < MODKEY ? e->event : e->child);
-  if (c->window == 0 || c->window == scr->root)
+  if (c == NULL || c->window == 0 || c->window == scr->root)
     return;
 
   focus_client(c);
@@ -105,9 +121,9 @@ void handle_motion_notify(xcb_generic_event_t *ev) {
   xcb_query_pointer_cookie_t coord = xcb_query_pointer(dpy, scr->root);
   xcb_query_pointer_reply_t *poin = xcb_query_pointer_reply(dpy, coord, 0);
   uint32_t val[2] = {1, 3};
-  if ((values[2] == val[0]) && (focused_desktop->focused->window != 0)) {
+  if ((values[2] == val[0]) && (focdesk->focused->window != 0)) {
     xcb_get_geometry_cookie_t geom_now =
-        xcb_get_geometry(dpy, focused_desktop->focused->window);
+        xcb_get_geometry(dpy, focdesk->focused->window);
     xcb_get_geometry_reply_t *geom =
         xcb_get_geometry_reply(dpy, geom_now, NULL);
     values[0] = ((poin->root_x + geom->width + (2 * BORDER_WIDTH)) >
@@ -119,18 +135,18 @@ void handle_motion_notify(xcb_generic_event_t *ev) {
          scr->height_in_pixels)
             ? (scr->height_in_pixels - geom->height - (2 * BORDER_WIDTH))
             : poin->root_y;
-    xcb_configure_window(dpy, focused_desktop->focused->window,
+    xcb_configure_window(dpy, focdesk->focused->window,
                          XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
-  } else if ((values[2] == val[1]) && (focused_desktop->focused->window != 0)) {
+  } else if ((values[2] == val[1]) && (focdesk->focused->window != 0)) {
     xcb_get_geometry_cookie_t geom_now =
-        xcb_get_geometry(dpy, focused_desktop->focused->window);
+        xcb_get_geometry(dpy, focdesk->focused->window);
     xcb_get_geometry_reply_t *geom =
         xcb_get_geometry_reply(dpy, geom_now, NULL);
     if (!((poin->root_x <= geom->x) || (poin->root_y <= geom->y))) {
       values[0] = poin->root_x - geom->x - BORDER_WIDTH;
       values[1] = poin->root_y - geom->y - BORDER_WIDTH;
       if ((values[0] >= min_x) && (values[1] >= min_y)) {
-        xcb_configure_window(dpy, focused_desktop->focused->window,
+        xcb_configure_window(dpy, focdesk->focused->window,
                              XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
                              values);
       }

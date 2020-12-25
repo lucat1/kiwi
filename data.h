@@ -1,6 +1,7 @@
 #ifndef DATA_H
 #define DATA_H
 
+#include "stack.h"
 #include <xcb/xcb.h>
 
 typedef struct client client_t;
@@ -43,6 +44,8 @@ struct desktop {
   layout_t layout;
   client_t *clients;
   client_t *focused;
+
+  stack_t *focus_stack;
 
   struct desktop *next;
 };
