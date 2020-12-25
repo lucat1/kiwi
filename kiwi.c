@@ -66,16 +66,13 @@ void focus_client(client_t *c) {
       c->window == 0 && c->window == scr->root)
     return;
 
-  msg("focusing client %d", c);
-
   // set the focused client value
   focdesk->focused = c;
   // push the client to the focus list if we have an empty one or
   // the client isn't already at the top of it
-  /* if ((focdesk->focus_stack != NULL && focdesk->focus_stack->value != c) ||
-   */
-  /*     focdesk->focus_stack == NULL) */
-  stack_push(&focdesk->focus_stack, c);
+  if ((focdesk->focus_stack != NULL && focdesk->focus_stack->value != c) ||
+      focdesk->focus_stack == NULL)
+    stack_push(&focdesk->focus_stack, c);
 
   // move the focused window above all others
   static const uint32_t v[] = {XCB_STACK_MODE_ABOVE};
