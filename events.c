@@ -53,13 +53,13 @@ void handle_map_request(xcb_generic_event_t *ev) {
   client_t *c = get_client(e->window);
   xcb_map_window(dpy, c->window);
 
+  focus_client(c);
   focdesk->layout.reposition(focdesk);
   setBorderWidth(c->window);
   uint32_t values[1] = {XCB_EVENT_MASK_ENTER_WINDOW |
                         XCB_EVENT_MASK_FOCUS_CHANGE};
   xcb_change_window_attributes_checked(dpy, c->window, XCB_CW_EVENT_MASK,
                                        values);
-  focus_client(c);
 }
 
 void handle_destroy_notify(xcb_generic_event_t *ev) {
@@ -76,6 +76,8 @@ void handle_destroy_notify(xcb_generic_event_t *ev) {
   // focus the new best client
   if (focdesk->focus_stack != NULL)
     focus_client((client_t *)focdesk->focus_stack->value);
+
+  focdesk->layout.reposition(focdesk);
 }
 
 void handle_button_press(xcb_generic_event_t *ev) {
