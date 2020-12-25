@@ -17,8 +17,6 @@ struct client {
   xcb_window_t window;
   float split_ratio;
   enum split_direction split_direction;
-
-  struct client *next;
 };
 
 enum layout_type { LAYOUT_TILING, LAYOUT_FLOATING };
@@ -47,15 +45,13 @@ struct desktop {
 
   list_t *clients;
   stack_t *focus_stack;
-
-  struct desktop *next;
 };
 
 struct keybind {
   unsigned int mod;
   xcb_keysym_t keysym;
-  void (*func)(char **com);
-  char **com;
+  void (*func)(const char **com);
+  const char **com;
 };
 
 struct handler_func {

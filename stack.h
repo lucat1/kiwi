@@ -1,11 +1,12 @@
 #ifndef STACK_H
 #define STACK_H
 
+typedef struct stack stack_t;
+
 struct stack {
   void *value;
   struct stack *prev;
 };
-typedef struct stack stack_t;
 
 void stack_push(stack_t **s, void *ele);
 void *stack_pop(stack_t **s);

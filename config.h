@@ -27,6 +27,9 @@
 // - SPLIT_HORIZONTAL
 #define SPLIT_DIRECTION SPLIT_VERTICAL
 
+// amount of default desktops to create when the wm starts up
+#define DEFAULT_DESKTOPS 1
+
 /* DEFAULT WINDOW PROPERTIES
  * The following parameters can be used to change existing and new
  * window behavior.
@@ -48,8 +51,8 @@
  * be terminated by a NULL pointer.
  */
 
-static char *termcmd[] = {"st", NULL};
-static char *menucmd[] = {"dmenu_run", NULL};
+static const char *termcmd[] = {"st", NULL};
+static const char *menucmd[] = {"dmenu_run", NULL};
 
 /* KEY ALIASES
  * In general, one shortcut key should exist per alias. For more key

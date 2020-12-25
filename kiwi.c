@@ -20,20 +20,20 @@ desktop_t *focdesk = NULL;
 xcb_connection_t *dpy = NULL;
 xcb_screen_t *scr = NULL;
 
-void killclient(char **com) {
+void killclient(const char **com) {
   UNUSED(com);
   if (focdesk->focused != NULL)
     xcb_kill_client(dpy, focdesk->focused->window);
 }
 
-void closewm(char **com) {
+void closewm(const char **com) {
   UNUSED(com);
   if (dpy != NULL) {
     xcb_disconnect(dpy);
   }
 }
 
-void spawn(char **com) {
+void spawn(const char **com) {
   if (fork() == 0) {
     if (dpy != NULL) {
       close(scr->root);

@@ -16,7 +16,6 @@ client_t *new_client(xcb_window_t w) {
 
   client_t *c = malloc(sizeof(client_t));
   c->window = w;
-  c->next = NULL;
   c->split_ratio = SPLIT_RATIO;
   c->split_direction = SPLIT_DIRECTION;
 
@@ -50,16 +49,8 @@ desktop_t *new_desktop(layout_t l) {
   desk->clients = NULL;
   desk->focused = NULL;
   desk->focus_stack = NULL;
-  desk->next = NULL;
 
   return desk;
 }
 
-void free_desktop(desktop_t *list) {
-  while (list != NULL) {
-    desktop_t *tmp = list;
-    list = list->next;
-    stack_free(tmp->focus_stack);
-    free(tmp);
-  }
-}
+void free_desktop(desktop_t *list) { stack_free(list->focus_stack); }

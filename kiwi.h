@@ -12,9 +12,9 @@ extern xcb_connection_t *dpy; // the X display
 extern xcb_screen_t *scr;     // the X screen (TODO: xinerama)
 
 /* user defined command actions */
-void killclient(char **com);
-void spawn(char **com);
-void closewm(char **com);
+void killclient(const char **com);
+void spawn(const char **com);
+void closewm(const char **com);
 
 /* window behavior */
 void focus_client(client_t *c);
