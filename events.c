@@ -2,6 +2,7 @@
 #include "config.h"
 #include "data.h"
 #include "kiwi.h"
+#include "list.h"
 #include "util.h"
 #include <stdbool.h>
 #include <stdlib.h>
@@ -34,7 +35,7 @@ static uint32_t min_y = WINDOW_MIN_Y;
 void handle_create_notify(xcb_generic_event_t *ev) {
   xcb_create_notify_event_t *e = (xcb_create_notify_event_t *)ev;
   client_t *c = new_client(e->window);
-  focdesk->clients = push_client(focdesk->clients, c);
+  list_append(&focdesk->clients, c);
 }
 
 void handle_map_request(xcb_generic_event_t *ev) {
@@ -65,15 +66,10 @@ void handle_destroy_notify(xcb_generic_event_t *ev) {
   // discard any window information
   xcb_ungrab_button(dpy, XCB_BUTTON_INDEX_1, c->window, XCB_NONE);
   xcb_kill_client(dpy, c->window);
-  focdesk->clients = remove_client(focdesk->clients, c);
+  list_remove(&focdesk->clients, c);
 
   // focus the new best client
-  stack_clean(&focdesk->focus_stack, c);
-  stack_t *i = focdesk->focus_stack;
-  while (i != NULL) {
-    printf("stack ele: %p\n", i->value);
-    i = i->prev;
-  }
+  stack_remove(&focdesk->focus_stack, c);
   if (focdesk->focus_stack != NULL)
     focus_client((client_t *)focdesk->focus_stack->value);
 }

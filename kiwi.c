@@ -15,7 +15,7 @@
   (XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | \
    XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_BUTTON_PRESS)
 
-desktop_t *desktops = NULL;
+list_t *desktops = NULL;
 desktop_t *focdesk = NULL;
 xcb_connection_t *dpy = NULL;
 xcb_screen_t *scr = NULL;
@@ -119,17 +119,19 @@ static void setup() {
   xcb_flush(dpy);
 
   // setup the first desktop
-  desktops = focdesk = new_desktop(DEFAULT_LAYOUT);
+  focdesk = new_desktop(DEFAULT_LAYOUT);
+  list_append(&desktops, focdesk);
 }
 
 void clean() {
-  desktop_t *iter = desktops;
+  list_t *iter = desktops;
   while (iter != NULL) {
-    free_clients(iter->clients);
+    desktop_t *desk = (desktop_t *)iter->value;
+    list_free(desk->clients, NULL);
     iter = iter->next;
   }
 
-  free_desktops(desktops);
+  list_free(desktops, (void (*)(void *))free_desktop);
 }
 
 int main() {

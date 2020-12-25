@@ -1,6 +1,7 @@
 #ifndef DATA_H
 #define DATA_H
 
+#include "list.h"
 #include "stack.h"
 #include <xcb/xcb.h>
 
@@ -42,9 +43,9 @@ struct desktop {
   int i;
 
   layout_t layout;
-  client_t *clients;
   client_t *focused;
 
+  list_t *clients;
   stack_t *focus_stack;
 
   struct desktop *next;
@@ -62,33 +63,9 @@ struct handler_func {
   void (*func)(xcb_generic_event_t *ev);
 };
 
-#define PUSHD(n, t) t *push_##n(t *head, t *n);
-#define UNSHIFTD(n, t) t *unshift_##n(t *head, t *n);
-#define REMOVED(n, t) t *remove_##n(t *iter, t *n);
-#define FREED(n, t) void free_##n(t *list);
-#define SIZED(n, t) int size_##n(t *list);
-
-PUSHD(client, client_t)
-UNSHIFTD(client, client_t)
-REMOVED(client, client_t)
-FREED(clients, client_t)
-SIZED(clients, client_t)
-
-PUSHD(desktop, desktop_t)
-UNSHIFTD(desktop, desktop_t)
-REMOVED(desktop, desktop_t)
-FREED(desktops, desktop_t)
-SIZED(desktops, desktop_t)
-
-#undef PUSHD
-#undef UNSHIFTD
-#undef REMOVE
-#undef PREPENDD
-#undef FREED
-#undef SIZED
-
 client_t *new_client(xcb_window_t w);
 client_t *get_client(xcb_window_t w);
 desktop_t *new_desktop(layout_t l);
+void free_desktop(desktop_t *list);
 
 #endif // DATA_H

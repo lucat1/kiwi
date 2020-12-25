@@ -3,9 +3,10 @@
 #define KIWI_H
 
 #include "data.h"
+#include "list.h"
 #include <xcb/xcb_keysyms.h>
 
-extern desktop_t *desktops;   // list of desktops
+extern list_t *desktops;      // list of desktops
 extern desktop_t *focdesk;    // the currently focused desktop
 extern xcb_connection_t *dpy; // the X display
 extern xcb_screen_t *scr;     // the X screen (TODO: xinerama)

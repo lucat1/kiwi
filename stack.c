@@ -18,7 +18,7 @@ void *stack_pop(stack_t **s) {
   return ele->value;
 }
 
-void stack_clean(stack_t **s, void *ele) {
+void stack_remove(stack_t **s, void *ele) {
   stack_t *head = *s, *iter = *s, *prev = NULL;
   while (iter != NULL) {
     if (iter->value == ele) {
@@ -37,4 +37,12 @@ void stack_clean(stack_t **s, void *ele) {
   }
 
   *s = head;
+}
+
+void stack_free(stack_t *iter) {
+  while (iter != NULL) {
+    stack_t *tmp = iter;
+    iter = iter->prev;
+    free(tmp);
+  }
 }
