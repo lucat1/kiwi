@@ -48,7 +48,7 @@ void handle_map_request(xcb_generic_event_t *ev) {
                   XCB_GRAB_MODE_SYNC, XCB_GRAB_MODE_ASYNC, XCB_NONE, XCB_NONE,
                   XCB_BUTTON_INDEX_1, XCB_NONE);
 #endif
-  uint32_t values[1] = {XCB_EVENT_MASK_ENTER_WINDOW |
+  uint32_t values[1] = {(FOCUS_TYPE ? XCB_EVENT_MASK_ENTER_WINDOW : 0) |
                         XCB_EVENT_MASK_FOCUS_CHANGE};
   xcb_change_window_attributes_checked(dpy, c->window, XCB_CW_EVENT_MASK,
                                        values);
@@ -138,6 +138,10 @@ void handle_motion_notify(xcb_generic_event_t *ev) {
 
 void handle_configure_notify(xcb_generic_event_t *ev) {
   xcb_configure_notify_event_t *e = (xcb_configure_notify_event_t *)ev;
+  if (e->window == 0 || e->window == scr->root) {
+    handle_root_resize(e);
+    return;
+  }
   client_t *c = get_client(e->window);
   if (c == NULL || c->motion != MOTION_NONE || c->visibility == HIDDEN)
     return;
@@ -146,6 +150,12 @@ void handle_configure_notify(xcb_generic_event_t *ev) {
   c->y = e->y;
   c->w = e->width;
   c->h = e->height;
+}
+
+void handle_root_resize(xcb_configure_notify_event_t *e) {
+  scr->width_in_pixels = e->width;
+  scr->height_in_pixels = e->height;
+  focdesk->layout.reposition(focdesk);
 }
 
 void handle_button_release(xcb_generic_event_t *ev) {

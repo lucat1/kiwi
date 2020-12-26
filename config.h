@@ -13,7 +13,7 @@
 // options:
 // - tiling_layout (default)
 // - floating_layout
-#define DEFAULT_LAYOUT floating_layout
+#define DEFAULT_LAYOUT tiling_layout
 
 // type of focus for windows. could be as follows
 // (0) click to focus (default)

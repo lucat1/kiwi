@@ -3,6 +3,7 @@ CFLAGS += -std=c99 -Wall -Wextra -pedantic -Wold-style-declaration -Wno-missing-
 
 LDFLAGS += -lxcb -lxcb-keysyms
 PREFIX ?= /usr
+BINDIR ?= $(PREFIX)/bin
 BIN = kiwi
 
 SRC = $(wildcard *.c)

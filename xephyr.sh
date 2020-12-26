@@ -3,7 +3,7 @@
 make debug
 
 D=${D:-80}
-Xephyr -br -ac -noreset -screen 1200x800 :$D&
+Xephyr -resizeable -br -ac -noreset -screen 1200x800 :$D&
 sleep 1
 
 export DISPLAY=:$D
