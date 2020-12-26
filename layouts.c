@@ -5,6 +5,9 @@
 #include "list.h"
 #include "util.h"
 
+static void tiling_reposition(desktop_t *desk);
+static void floating_reposition(desktop_t *desk);
+
 const layout_t tiling_layout = {.type = LAYOUT_TILING,
                                 .reposition = tiling_reposition};
 const layout_t floating_layout = {.type = LAYOUT_FLOATING,
@@ -28,7 +31,7 @@ static void floating_reposition(desktop_t *desk) {
 // windows to be stacked one upon the other to the right.
 static void tiling_reposition(desktop_t *desk) {
   int i = 0, x = 0, y = 0, w = scr->width_in_pixels, h = scr->height_in_pixels;
-  const bw = BORDER_WIDTH * 2;
+  const int bw = BORDER_WIDTH * 2;
   list_t *iter = desk->clients;
   while (iter != NULL) {
     bool fill = i == list_size(desk->clients) - 1;

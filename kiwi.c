@@ -63,7 +63,7 @@ void move_rel(FN_ARG arg) {
 
 void focus_client(client_t *c) {
   if (c == NULL || focdesk->focused == c ||
-      c->window == 0 && c->window == scr->root)
+      (c->window == 0 && c->window == scr->root))
     return;
 
   // set the focused client value

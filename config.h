@@ -69,21 +69,29 @@ static const char *menucmd[] = {"dmenu_run", NULL};
  */
 
 #define WS(k, n)                                                               \
-  {MODKEY, k, move_to, {.i = n}},                                              \
-      {MODKEY | XCB_MOD_MASK_SHIFT, k, send_to, {.i = n}},
-static keybind_t keys[] = {
+  {MODKEY, k, move_to, {.i = n}}, {                                            \
+    MODKEY | XCB_MOD_MASK_SHIFT, k, send_to, { .i = n }                        \
+  }
+
+static const struct arg noarg = {0};
+
+static const keybind_t keys[] = {
     {MODKEY, XK_Return, spawn, {.v = termcmd}},
     {MODKEY, XK_space, spawn, {.v = menucmd}},
-    {MODKEY, XK_w, killclient, NULL},
+    {MODKEY, XK_w, killclient, noarg},
 
     {MODKEY, XK_l, move_rel, {.i = 1}},
     {MODKEY, XK_h, move_rel, {.i = -1}},
     {MODKEY | XCB_MOD_MASK_SHIFT, XK_l, send_rel, {.i = 1}},
     {MODKEY | XCB_MOD_MASK_SHIFT, XK_h, send_rel, {.i = -1}},
 
-    WS(XK_1, 0) WS(XK_2, 1) WS(XK_3, 2) WS(XK_4, 3) WS(XK_5, 4)
+    WS(XK_1, 0),
+    WS(XK_2, 1),
+    WS(XK_3, 2),
+    WS(XK_4, 3),
+    WS(XK_5, 4),
 
-        {MODKEY | XCB_MOD_MASK_SHIFT, XK_q, closewm, NULL},
+    {MODKEY | XCB_MOD_MASK_SHIFT, XK_q, closewm, noarg},
 };
 
 #endif // CONFIG_H

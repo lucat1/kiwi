@@ -1,5 +1,5 @@
 CC     ?= gcc
-CFLAGS += -std=c99 -Wall -Wextra -pedantic -Wold-style-declaration
+CFLAGS += -std=c99 -Wall -Wextra -pedantic -Wold-style-declaration -Wno-missing-braces
 
 LDFLAGS += -lxcb -lxcb-keysyms
 PREFIX ?= /usr
