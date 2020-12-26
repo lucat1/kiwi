@@ -36,30 +36,27 @@ void handle_create_notify(xcb_generic_event_t *ev) {
   xcb_create_notify_event_t *e = (xcb_create_notify_event_t *)ev;
   client_t *c = new_client(e->window);
   list_append(&focdesk->clients, c);
-  msg("added client to %p(%d), now at %d", focdesk, focdesk->i,
-      list_size(focdesk->clients));
 }
 
 void handle_map_request(xcb_generic_event_t *ev) {
   xcb_map_request_event_t *e = (xcb_map_request_event_t *)ev;
+  client_t *c = get_client(e->window);
 
 #if !FOCUS_TYPE
   // start grabbing for clicks on the window
-  xcb_grab_button(dpy, false, e->window, XCB_EVENT_MASK_BUTTON_PRESS,
+  xcb_grab_button(dpy, false, c->window, XCB_EVENT_MASK_BUTTON_PRESS,
                   XCB_GRAB_MODE_SYNC, XCB_GRAB_MODE_ASYNC, XCB_NONE, XCB_NONE,
                   XCB_BUTTON_INDEX_1, XCB_NONE);
 #endif
-
-  client_t *c = get_client(e->window);
-  setBorderWidth(c->window);
-  xcb_map_window(dpy, c->window);
-
-  focus_client(c);
-  focdesk->layout.reposition(focdesk);
   uint32_t values[1] = {XCB_EVENT_MASK_ENTER_WINDOW |
                         XCB_EVENT_MASK_FOCUS_CHANGE};
   xcb_change_window_attributes_checked(dpy, c->window, XCB_CW_EVENT_MASK,
                                        values);
+  xcb_map_window(dpy, c->window);
+
+  setBorderWidth(c->window);
+  focus_client(c);
+  focdesk->layout.reposition(focdesk);
 }
 
 void handle_destroy_notify(xcb_generic_event_t *ev) {
