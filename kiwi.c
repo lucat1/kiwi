@@ -62,8 +62,7 @@ void move_rel(FN_ARG arg) {
 }
 
 void focus_client(client_t *c) {
-  if (c == NULL || focdesk->focused == c ||
-      (c->window == 0 && c->window == scr->root))
+  if (c == NULL || (c->window == 0 && c->window == scr->root))
     return;
 
   // set the focused client value
@@ -158,6 +157,9 @@ void send_client(client_t *c, int i) {
 
   // push it to the new workspace
   list_append(&desk->clients, c);
+  stack_push(&desk->focus_stack, c);
+  desk->focused = c;
+
 #if FOLLOW_SEND
   focus_desktop(desk);
 #endif
@@ -172,24 +174,25 @@ void focus_desktop(desktop_t *desk) {
 
   focdesk = desk;
   focdesk->layout.reposition(focdesk);
+  focus_client(focdesk->focused);
 }
 
-void setBorderColor(xcb_window_t window, int focus) {
-  if ((BORDER_WIDTH > 0) && (scr->root != window) && (0 != window)) {
-    uint32_t vals[1];
-    vals[0] = focus ? BORDER_COLOR_FOCUSED : BORDER_COLOR_UNFOCUSED;
-    xcb_change_window_attributes(dpy, window, XCB_CW_BORDER_PIXEL, vals);
-    xcb_flush(dpy);
-  }
+void border_color(client_t *c, bool focus) {
+  if (BORDER_WIDTH <= 0 || c->window == scr->root || c->window == 0)
+    return;
+
+  uint32_t vals[1] = {focus ? BORDER_COLOR_FOCUSED : BORDER_COLOR_UNFOCUSED};
+  xcb_change_window_attributes(dpy, c->window, XCB_CW_BORDER_PIXEL, vals);
+  xcb_flush(dpy);
 }
 
-void setBorderWidth(xcb_window_t window) {
-  if ((BORDER_WIDTH > 0) && (scr->root != window) && (0 != window)) {
-    uint32_t vals[2];
-    vals[0] = BORDER_WIDTH;
-    xcb_configure_window(dpy, window, XCB_CONFIG_WINDOW_BORDER_WIDTH, vals);
-    xcb_flush(dpy);
-  }
+void border_width(client_t *c, int width) {
+  if (width <= 0 || c->window == scr->root || c->window == 0)
+    return;
+
+  uint32_t vals[2] = {width};
+  xcb_configure_window(dpy, c->window, XCB_CONFIG_WINDOW_BORDER_WIDTH, vals);
+  xcb_flush(dpy);
 }
 
 static void setup() {

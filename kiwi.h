@@ -31,9 +31,7 @@ void hide_client(client_t *c);
 void show_client(client_t *c);
 void focus_desktop(desktop_t *desk);
 void send_client(client_t *c, int i);
-void setWindowDimensions(xcb_drawable_t window);
-void setWindowPosition(xcb_drawable_t window);
-void setBorderWidth(xcb_drawable_t window);
-void setBorderColor(xcb_drawable_t window, int focus);
+void border_color(client_t *c, bool focus);
+void border_width(client_t *c, int width);
 
 #endif

@@ -54,7 +54,7 @@ void handle_map_request(xcb_generic_event_t *ev) {
                                        values);
   xcb_map_window(dpy, c->window);
 
-  setBorderWidth(c->window);
+  border_width(c, BORDER_WIDTH);
   focus_client(c);
   focdesk->layout.reposition(focdesk);
 }
@@ -166,12 +166,14 @@ void handle_enter_notify(xcb_generic_event_t *ev) {
 
 void handle_focus_in(xcb_generic_event_t *ev) {
   xcb_focus_in_event_t *e = (xcb_focus_in_event_t *)ev;
-  setBorderColor(e->event, 1);
+  client_t *c = get_client(e->event);
+  border_color(c, true);
 }
 
 void handle_focus_out(xcb_generic_event_t *ev) {
   xcb_focus_out_event_t *e = (xcb_focus_out_event_t *)ev;
-  setBorderColor(e->event, 0);
+  client_t *c = get_client(e->event);
+  border_color(c, false);
 }
 
 void handle_key_press(xcb_generic_event_t *ev) {
