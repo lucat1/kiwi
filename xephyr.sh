@@ -3,10 +3,10 @@
 make debug
 
 D=${D:-80}
-Xephyr -resizeable -br -ac -noreset -screen 1200x800 :$D&
+Xephyr +extension RANDR -screen 1280x720 :$D &
 sleep 1
 
 export DISPLAY=:$D
 
-# ./kiwi
-gdb -r ./kiwi 
+./kiwi
+# gdb -r ./kiwi 

@@ -7,6 +7,7 @@
 
 // most of the code in this file is borrowed from the awesome windowchef
 
+static void dummy_monitor();
 static void get_randr();
 static void get_outputs();
 static monitor_t *find_monitor(xcb_randr_output_t);
@@ -19,16 +20,25 @@ void setup_randr() {
   const xcb_query_extension_reply_t *r =
       xcb_get_extension_data(dpy, &xcb_randr_id);
 
-  if (!r->present)
-    die("could not setup randr");
+  if (!r->present) {
+    dummy_monitor();
+    return;
+  }
 
-  get_randr();
   randr_base = r->first_event;
+  get_randr();
   xcb_randr_select_input(dpy, scr->root,
                          XCB_RANDR_NOTIFY_MASK_SCREEN_CHANGE |
                              XCB_RANDR_NOTIFY_MASK_OUTPUT_CHANGE |
                              XCB_RANDR_NOTIFY_MASK_CRTC_CHANGE |
                              XCB_RANDR_NOTIFY_MASK_OUTPUT_PROPERTY);
+}
+
+// use a dummy monitor for when we can't identify monitors with randr
+static void dummy_monitor() {
+  monitor_t *mon = new_monitor(0, "dummy", 0, 0, scr->width_in_pixels,
+                               scr->height_in_pixels);
+  list_append(&monitors, mon);
 }
 
 static void get_randr() {
@@ -38,15 +48,18 @@ static void get_randr() {
       xcb_randr_get_screen_resources_current_reply(dpy, c, NULL);
 
   if (r == NULL)
-    return;
+    fail("randr: could not fetch screen resources");
 
   xcb_timestamp_t timestamp = r->config_timestamp;
   int len = xcb_randr_get_screen_resources_current_outputs_length(r);
   xcb_randr_output_t *outputs =
       xcb_randr_get_screen_resources_current_outputs(r);
 
-  /* Request information for all outputs */
-  get_outputs(outputs, len, timestamp);
+  if (len > 0)
+    get_outputs(outputs, len, timestamp);
+  else
+    dummy_monitor();
+
   free(r);
 }
 
