@@ -2,6 +2,7 @@
 #include "config.h"
 #include "data.h"
 #include "events.h"
+#include "randr.h"
 #include "util.h"
 
 #include <stdbool.h>
@@ -15,8 +16,8 @@
   (XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | \
    XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_BUTTON_PRESS)
 
-list_t *desktops = NULL;
-desktop_t *focdesk = NULL;
+list_t *monitors;
+monitor_t *focmon;
 xcb_connection_t *dpy = NULL;
 xcb_screen_t *scr = NULL;
 
@@ -145,9 +146,9 @@ void send_client(client_t *c, int i) {
   desktop_t *desk = get_desktop(i);
   if (desk == NULL)
 #if CREATE_DESKTOP_IF_NOT_EXISTS
-    while (list_size(desktops) <= i) {
+    while (desktop_count <= i) {
       desk = new_desktop(DEFAULT_LAYOUT);
-      list_append(&desktops, desk);
+      list_append(&focmon->desktops, desk);
     }
 #else
     return;
@@ -175,13 +176,16 @@ void focus_desktop(desktop_t *desk) {
   if (desk->i == focdesk->i)
     return;
 
-  list_t *iter = focdesk->clients;
-  while (iter != NULL) {
-    hide_client(iter->value);
-    iter = iter->next;
+  monitor_t *mon = get_monitor(desk);
+  if (mon == NULL)
+    die("could not find monitor for desktop");
+
+  for (list_t *citer = focdesk->clients; citer != NULL; citer = citer->next) {
+    hide_client(citer->value);
   }
 
-  focdesk = desk;
+  focmon = mon;
+  focmon->focused = desk;
   focdesk->layout.reposition(focdesk);
   focus_client(focdesk->focused);
 }
@@ -233,21 +237,28 @@ static void setup() {
 
   xcb_flush(dpy);
 
-  // setup the the default desktops
-  for (int i = 0; i < DEFAULT_DESKTOPS; i++)
-    list_append(&desktops, new_desktop(DEFAULT_LAYOUT));
-  focdesk = desktops->value; // focus the first desktop
+  if (list_size(monitors) < 1)
+    die("randr: no monitors found");
+
+  // setup the the default desktops for each monitor
+  for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
+    monitor_t *mon = miter->value;
+    for (int i = 0; i < DEFAULT_DESKTOPS; i++)
+      list_append(&mon->desktops, new_desktop(DEFAULT_LAYOUT));
+  }
+  focmon = monitors->value; // focus the first monitor
 }
 
 void clean() {
-  list_t *iter = desktops;
-  while (iter != NULL) {
-    desktop_t *desk = (desktop_t *)iter->value;
-    list_free(desk->clients, NULL);
-    iter = iter->next;
+  for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
+    monitor_t *mon = miter->value;
+    for (list_t *diter = mon->desktops; diter != NULL; diter = diter->next) {
+      desktop_t *desk = diter->value;
+      list_free(desk->clients, NULL);
+    }
+    list_free(mon->desktops, (void (*)(void *))free_desktop);
   }
-
-  list_free(desktops, (void (*)(void *))free_desktop);
+  list_free(monitors, NULL);
 }
 
 int main() {
@@ -256,6 +267,7 @@ int main() {
     return 1;
 
   scr = xcb_setup_roots_iterator(xcb_get_setup(dpy)).data;
+  setup_randr();
   setup();
   if (xcb_has_error(dpy))
     return 1;
@@ -271,9 +283,9 @@ int main() {
         events[type](ev);
 #ifdef DEBUG
       else
-      /* msg("unhandled event: %s", xcb_event_str(type)); */
+        msg("unhandled event: %s", xcb_event_str(type));
 #endif // DEBUG
-        free(ev);
+      free(ev);
     }
 
     if (xcb_has_error(dpy))

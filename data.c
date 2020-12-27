@@ -3,6 +3,7 @@
 #include "kiwi.h"
 #include "util.h"
 #include <stdlib.h>
+#include <xcb/randr.h>
 #include <xcb/xcb.h>
 
 int desktop_count = 0;
@@ -32,19 +33,16 @@ client_t *new_client(xcb_window_t w) {
 }
 
 client_t *get_client(xcb_window_t w) {
-  list_t *diter = desktops;
-  while (diter != NULL) {
-    desktop_t *desk = (desktop_t *)diter->value;
-    list_t *citer = desk->clients;
-    while (citer != NULL) {
-      client_t *c = (client_t *)citer->value;
-      if (c->window == w)
-        return c;
-
-      citer = citer->next;
+  for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
+    monitor_t *mon = miter->value;
+    for (list_t *diter = mon->desktops; diter != NULL; diter = diter->next) {
+      desktop_t *desk = diter->value;
+      for (list_t *citer = desk->clients; citer != NULL; citer = citer->next) {
+        client_t *c = (client_t *)citer->value;
+        if (c->window == w)
+          return c;
+      }
     }
-
-    diter = diter->next;
   }
 
   return NULL;
@@ -63,16 +61,41 @@ desktop_t *new_desktop(layout_t l) {
 }
 
 desktop_t *get_desktop(int i) {
-  list_t *diter = desktops;
-  while (diter != NULL) {
-    desktop_t *desk = (desktop_t *)diter->value;
-    if (desk->i == i)
-      return desk;
-
-    diter = diter->next;
+  for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
+    monitor_t *mon = miter->value;
+    for (list_t *diter = mon->desktops; diter != NULL; diter = diter->next) {
+      desktop_t *desk = diter->value;
+      if (desk->i == i)
+        return desk;
+    }
   }
 
   return NULL;
 }
 
 void free_desktop(desktop_t *list) { stack_free(list->focus_stack); }
+
+monitor_t *new_monitor(xcb_randr_output_t monitor, char *name, int16_t x,
+                       int16_t y, uint16_t w, uint16_t h) {
+  monitor_t *mon = malloc(sizeof(monitor_t));
+  mon->monitor = monitor;
+  mon->name = name;
+  mon->x = x;
+  mon->y = y;
+  mon->w = w;
+  mon->h = h;
+  return mon;
+}
+
+// returns the monitor which contains the requested desktop
+monitor_t *get_monitor(desktop_t *desk) {
+  for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
+    monitor_t *mon = miter->value;
+    for (list_t *diter = mon->desktops; diter != NULL; diter = diter->next) {
+      desktop_t *desktop = diter->value;
+      if (desktop == desk)
+        return mon;
+    }
+  }
+  return NULL;
+}

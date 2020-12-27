@@ -7,8 +7,11 @@
 #include <stdbool.h>
 #include <xcb/xcb_keysyms.h>
 
-extern list_t *desktops;      // list of desktops
-extern desktop_t *focdesk;    // the currently focused desktop
+extern list_t *monitors;  // list of monitors
+extern monitor_t *focmon; // the currently focused monitor
+#define focdesk ((desktop_t *)focmon->desktops->value)
+/* extern list_t *desktops;      // list of desktops */
+/* extern desktop_t *focdesk;    // the currently focused desktop */
 extern xcb_connection_t *dpy; // the X display
 extern xcb_screen_t *scr;     // the X screen (TODO: xinerama)
 

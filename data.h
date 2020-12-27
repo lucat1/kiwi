@@ -4,11 +4,13 @@
 #include "list.h"
 #include "stack.h"
 #include <stdbool.h>
+#include <xcb/randr.h>
 #include <xcb/xcb.h>
 
 typedef struct client client_t;
 typedef struct layout layout_t;
 typedef struct desktop desktop_t;
+typedef struct monitor monitor_t;
 typedef struct keybind keybind_t;
 typedef struct handler_func handler_func_t;
 
@@ -49,6 +51,15 @@ struct desktop {
   stack_t *focus_stack;
 };
 
+struct monitor {
+  xcb_randr_output_t monitor;
+  char *name;
+  int16_t x, y;
+  uint16_t w, h;
+  desktop_t *focused;
+  list_t *desktops;
+};
+
 struct arg {
   const int i;
   const char **v;
@@ -68,10 +79,14 @@ struct handler_func {
   void (*func)(xcb_generic_event_t *ev);
 };
 
+extern int desktop_count;
 client_t *new_client(xcb_window_t w);
 client_t *get_client(xcb_window_t w);
 desktop_t *new_desktop(layout_t l);
 desktop_t *get_desktop(int i);
 void free_desktop(desktop_t *list);
+monitor_t *new_monitor(xcb_randr_output_t monitor, char *name, int16_t x,
+                       int16_t y, uint16_t w, uint16_t h);
+monitor_t *get_monitor(desktop_t *desk);
 
 #endif // DATA_H

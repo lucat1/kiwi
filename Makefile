@@ -1,7 +1,7 @@
 CC     ?= gcc
 CFLAGS += -std=c99 -Wall -Wextra -pedantic -Wold-style-declaration -Wno-missing-braces
 
-LDFLAGS += -lxcb -lxcb-keysyms
+LDFLAGS += -lxcb -lxcb-keysyms -lxcb-randr
 PREFIX ?= /usr
 BINDIR ?= $(PREFIX)/bin
 BIN = kiwi
