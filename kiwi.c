@@ -65,6 +65,7 @@ void focus_client(client_t *c) {
   if (c == NULL || (c->window == 0 && c->window == scr->root))
     return;
 
+  msg("focusing %p", c);
   // set the focused client value
   focdesk->focused = c;
   // push the client to the focus list if we have an empty one or

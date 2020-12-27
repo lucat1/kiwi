@@ -21,8 +21,8 @@
 #define FOCUS_TYPE 0
 
 // amount of default desktops to create when the wm starts up
-// NOTE: must be >= 1
-#define DEFAULT_DESKTOPS 1
+// NOTE: must be >= 1 (default: 5)
+#define DEFAULT_DESKTOPS 5
 
 // follow sent windows to their new desktops
 #define FOLLOW_SEND 1
