@@ -129,14 +129,38 @@ void move_resize_client(client_t *c, int16_t x, int16_t y, uint16_t width,
                        values);
 }
 
+// borrowed from bspwm
+void toggle_client(client_t *c) {
+  uint32_t values_off[] = {ROOT_EVENT_MASK &
+                           ~XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY};
+  uint32_t values_on[] = {ROOT_EVENT_MASK};
+  xcb_change_window_attributes(dpy, scr->root, XCB_CW_EVENT_MASK, values_off);
+  if (c->visibility == SHOWN) {
+    /* set_window_state(win, XCB_ICCCM_WM_STATE_NORMAL); */
+    xcb_map_window(dpy, c->window);
+  } else {
+    xcb_unmap_window(dpy, c->window);
+    /* set_window_state(win, XCB_ICCCM_WM_STATE_ICONIC); */
+  }
+  xcb_change_window_attributes(dpy, scr->root, XCB_CW_EVENT_MASK, values_on);
+}
+
 void hide_client(client_t *c) {
+#ifdef DEBUG
+  msg("hiding %p (id: %d)", c, c->window);
+#endif
+
   c->visibility = HIDDEN;
-  move_client(c, scr->width_in_pixels, scr->height_in_pixels, false);
+  toggle_client(c);
 }
 
 void show_client(client_t *c) {
+#ifdef DEBUG
+  msg("showing %p (id: %d)", c, c->window);
+#endif
+
   c->visibility = SHOWN;
-  move_client(c, c->x, c->y, false);
+  toggle_client(c);
 }
 
 void send_client(client_t *c, int i) {
@@ -180,12 +204,23 @@ void focus_desktop(desktop_t *desk) {
   if (mon == NULL)
     die("could not find monitor for desktop");
 
+#ifdef DEBUG
+  msg("desktop %d --> %d", focdesk->i, desk->i);
+  msg("monitor %s --> %s", focmon->name, focmon->name);
+#endif
+
   for (list_t *citer = focdesk->clients; citer != NULL; citer = citer->next) {
     hide_client(citer->value);
   }
+  // TODO: remove input focus
+  if (focdesk->focused != NULL)
+    border_color(focdesk->focused, false);
 
   focmon = mon;
   focmon->focused = desk;
+  for (list_t *citer = focdesk->clients; citer != NULL; citer = citer->next) {
+    show_client(citer->value);
+  }
   focdesk->layout.reposition(focdesk);
   focus_client(focdesk->focused);
 }
@@ -247,6 +282,7 @@ static void setup() {
       list_append(&mon->desktops, new_desktop(DEFAULT_LAYOUT));
   }
   focmon = monitors->value; // focus the first monitor
+  focmon->focused = focmon->desktops->value;
 }
 
 void clean() {

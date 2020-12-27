@@ -137,10 +137,9 @@ void handle_motion_notify(xcb_generic_event_t *ev) {
 
 void handle_configure_notify(xcb_generic_event_t *ev) {
   xcb_configure_notify_event_t *e = (xcb_configure_notify_event_t *)ev;
-  if (e->window == 0 || e->window == scr->root) {
-    handle_root_resize(e);
+  if (e->window == 0 || e->window == scr->root)
     return;
-  }
+
   client_t *c = get_client(e->window);
   if (c == NULL || c->motion != MOTION_NONE || c->visibility == HIDDEN)
     return;
@@ -149,12 +148,6 @@ void handle_configure_notify(xcb_generic_event_t *ev) {
   c->y = e->y;
   c->w = e->width;
   c->h = e->height;
-}
-
-void handle_root_resize(xcb_configure_notify_event_t *e) {
-  scr->width_in_pixels = e->width;
-  scr->height_in_pixels = e->height;
-  focdesk->layout.reposition(focdesk);
 }
 
 void handle_button_release(xcb_generic_event_t *ev) {

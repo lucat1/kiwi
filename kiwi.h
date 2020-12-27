@@ -9,7 +9,7 @@
 
 extern list_t *monitors;  // list of monitors
 extern monitor_t *focmon; // the currently focused monitor
-#define focdesk ((desktop_t *)focmon->desktops->value)
+#define focdesk ((desktop_t *)focmon->focused)
 /* extern list_t *desktops;      // list of desktops */
 /* extern desktop_t *focdesk;    // the currently focused desktop */
 extern xcb_connection_t *dpy; // the X display
