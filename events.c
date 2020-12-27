@@ -157,11 +157,6 @@ void handle_configure_notify(xcb_generic_event_t *ev) {
 void handle_root_resize(xcb_configure_notify_event_t *e) {
   scr->width_in_pixels = e->width;
   scr->height_in_pixels = e->height;
-  uint32_t values[2] = {e->width, e->height};
-  xcb_configure_window(dpy, e->window,
-                       XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
-                       values);
-
   focdesk->layout.reposition(focdesk);
 }
 
