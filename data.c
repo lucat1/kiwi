@@ -84,6 +84,8 @@ monitor_t *new_monitor(xcb_randr_output_t monitor, char *name, int16_t x,
   mon->y = y;
   mon->w = w;
   mon->h = h;
+  mon->focused = NULL;
+  mon->desktops = NULL;
   return mon;
 }
 

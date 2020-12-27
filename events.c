@@ -3,6 +3,7 @@
 #include "data.h"
 #include "kiwi.h"
 #include "list.h"
+#include "randr.h"
 #include "util.h"
 #include <stdbool.h>
 #include <stdlib.h>
@@ -134,17 +135,34 @@ void handle_motion_notify(xcb_generic_event_t *ev) {
 
 void handle_configure_notify(xcb_generic_event_t *ev) {
   xcb_configure_notify_event_t *e = (xcb_configure_notify_event_t *)ev;
-  if (e->window == 0 || e->window == scr->root)
-    return;
+  if (e->window == 0 || e->window == scr->root) {
+    // if the dimentions have changed update the root window sizes
+    if (e->width != scr->width_in_pixels ||
+        e->height != scr->height_in_pixels) {
+      scr->width_in_pixels = e->width;
+      scr->height_in_pixels = e->height;
 
-  client_t *c = get_client(e->window);
-  if (c == NULL || c->motion != MOTION_NONE || c->visibility == HIDDEN)
-    return;
+      if (randr_base != -1) {
+        get_randr();
+        for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
+          desktop_t *desk = ((monitor_t *)miter->value)->focused;
+          if (desk != NULL)
+            desk->layout.reposition(desk);
+        }
+      }
+    }
+  } else {
+    client_t *c = get_client(e->window);
+    if (c == NULL || c->motion != MOTION_NONE || c->visibility == HIDDEN)
+      return;
 
-  c->x = e->x;
-  c->y = e->y;
-  c->w = e->width;
-  c->h = e->height;
+    // TODO: check if the window has been moved across two monitors!!
+
+    c->x = e->x;
+    c->y = e->y;
+    c->w = e->width;
+    c->h = e->height;
+  }
 }
 
 void handle_button_release(xcb_generic_event_t *ev) {

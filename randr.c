@@ -1,3 +1,4 @@
+#include "randr.h"
 #include "data.h"
 #include "kiwi.h"
 #include "util.h"
@@ -8,10 +9,9 @@
 // most of the code in this file is borrowed from the awesome windowchef
 
 static void dummy_monitor();
-static void get_randr();
 static void get_outputs();
 
-int randr_base;
+int randr_base = -1;
 
 void setup_randr() {
   const xcb_query_extension_reply_t *r =
@@ -38,7 +38,7 @@ static void dummy_monitor() {
   list_append(&monitors, mon);
 }
 
-static void get_randr() {
+void get_randr() {
   xcb_randr_get_screen_resources_current_cookie_t c =
       xcb_randr_get_screen_resources_current(dpy, scr->root);
   xcb_randr_get_screen_resources_current_reply_t *r =

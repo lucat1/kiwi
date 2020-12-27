@@ -297,6 +297,7 @@ static void setup() {
     monitor_t *mon = miter->value;
     for (int i = 0; i < DEFAULT_DESKTOPS; i++)
       list_append(&mon->desktops, new_desktop(DEFAULT_LAYOUT));
+    mon->focused = mon->desktops->value;
   }
   focmon = monitors->value; // focus the first monitor
   focmon->focused = focmon->desktops->value;
