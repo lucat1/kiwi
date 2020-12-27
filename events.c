@@ -26,9 +26,6 @@ void (*events[XCB_NO_OPERATION])(xcb_generic_event_t *e) = {
     [XCB_KEY_PRESS] = handle_key_press,
 };
 
-static uint32_t min_x = WINDOW_MIN_X;
-static uint32_t min_y = WINDOW_MIN_Y;
-
 void handle_create_notify(xcb_generic_event_t *ev) {
   xcb_create_notify_event_t *e = (xcb_create_notify_event_t *)ev;
   client_t *c = new_client(e->window);
@@ -128,7 +125,7 @@ void handle_motion_notify(xcb_generic_event_t *ev) {
     if (!((poin->root_x <= c->x) || (poin->root_y <= c->y))) {
       uint16_t width = poin->root_x - c->x - BORDER_WIDTH;
       uint16_t height = poin->root_y - c->y - BORDER_WIDTH;
-      if (width >= min_x && height >= min_y) {
+      if (width >= MIN_WIDTH && height >= MIN_HEIGHT) {
         resize_client(c, width, height);
       }
     }
