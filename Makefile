@@ -13,8 +13,11 @@ kiwi: $(OBJ)
 	@echo "LD\t$(BIN)"
 	@$(CC) $(LDFLAGS) -o $(BIN) $(OBJ) 
 
-debug: CFLAGS += -DDEBUG -ggdb
+debug: CFLAGS += -DDEBUG -DVERBOSE -ggdb
 debug: clean kiwi
+
+dev: CFLAGS += -DDEBUG -ggdb
+dev: clean kiwi
 
 profile: CFLAGS += -DDEBUG -pg
 profile: clean kiwi

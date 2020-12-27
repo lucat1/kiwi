@@ -318,8 +318,10 @@ int main() {
       if (events[type])
         events[type](ev);
 #ifdef DEBUG
+#ifdef VERBOSE
       else
         msg("unhandled event: %s", xcb_event_str(type));
+#endif // VERBOSE
 #endif // DEBUG
       free(ev);
     }
