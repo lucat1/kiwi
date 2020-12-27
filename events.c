@@ -23,9 +23,6 @@ void (*events[XCB_NO_OPERATION])(xcb_generic_event_t *e) = {
     [XCB_ENTER_NOTIFY] = handle_enter_notify,
 #endif // FOCUS_TYPE
 
-    [XCB_FOCUS_IN] = handle_focus_in,
-    [XCB_FOCUS_OUT] = handle_focus_out,
-
     [XCB_KEY_PRESS] = handle_key_press,
 };
 
@@ -175,18 +172,6 @@ void handle_enter_notify(xcb_generic_event_t *ev) {
   focus_client(c);
 }
 #endif // FOCUS_TYPE
-
-void handle_focus_in(xcb_generic_event_t *ev) {
-  xcb_focus_in_event_t *e = (xcb_focus_in_event_t *)ev;
-  client_t *c = get_client(e->event);
-  border_color(c, true);
-}
-
-void handle_focus_out(xcb_generic_event_t *ev) {
-  xcb_focus_out_event_t *e = (xcb_focus_out_event_t *)ev;
-  client_t *c = get_client(e->event);
-  border_color(c, false);
-}
 
 void handle_key_press(xcb_generic_event_t *ev) {
   xcb_key_press_event_t *e = (xcb_key_press_event_t *)ev;

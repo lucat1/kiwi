@@ -65,16 +65,21 @@ void focus_client(client_t *c) {
   if (c == NULL || (c->window == 0 && c->window == scr->root))
     return;
 
-  msg("focusing %p", c);
-  // set the focused client value
+  // remove focus from the previous client
+  if (focdesk->focused != NULL)
+    border_color(focdesk->focused, false);
+
+  // focus the new client
   focdesk->focused = c;
+  border_color(focdesk->focused, true);
+
   // push the client to the focus list if we have an empty one or
   // the client isn't already at the top of it
   if ((focdesk->focus_stack != NULL && focdesk->focus_stack->value != c) ||
       focdesk->focus_stack == NULL)
     stack_push(&focdesk->focus_stack, c);
 
-  // move the focused window above all others
+  // move the focused window above all others and set the input focus
   static const uint32_t v[] = {XCB_STACK_MODE_ABOVE};
   xcb_configure_window(dpy, c->window, XCB_CONFIG_WINDOW_STACK_MODE, v);
   xcb_set_input_focus(dpy, XCB_INPUT_FOCUS_POINTER_ROOT, c->window,
@@ -167,6 +172,9 @@ void send_client(client_t *c, int i) {
 }
 
 void focus_desktop(desktop_t *desk) {
+  if (desk->i == focdesk->i)
+    return;
+
   list_t *iter = focdesk->clients;
   while (iter != NULL) {
     hide_client(iter->value);
