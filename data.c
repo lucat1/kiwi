@@ -99,3 +99,24 @@ monitor_t *get_monitor(desktop_t *desk) {
   }
   return NULL;
 }
+
+// find a monitor in the mirror list by its xcb identifier
+monitor_t *get_monitor_by_id(xcb_randr_output_t m) {
+  for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
+    monitor_t *mon = miter->value;
+    if (mon->monitor == m)
+      return mon;
+  }
+
+  return NULL;
+}
+
+// find cloned (mirrored) outputs
+monitor_t *get_monitor_clones(xcb_randr_output_t m, int16_t x, int16_t y) {
+  for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
+    monitor_t *mon = miter->value;
+    if (mon->monitor != m && mon->x == x && mon->y == y)
+      return mon;
+  }
+  return NULL;
+}

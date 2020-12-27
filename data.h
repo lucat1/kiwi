@@ -88,5 +88,7 @@ void free_desktop(desktop_t *list);
 monitor_t *new_monitor(xcb_randr_output_t monitor, char *name, int16_t x,
                        int16_t y, uint16_t w, uint16_t h);
 monitor_t *get_monitor(desktop_t *desk);
+monitor_t *get_monitor_by_id(xcb_randr_output_t m);
+monitor_t *get_monitor_clones(xcb_randr_output_t m, int16_t x, int16_t y);
 
 #endif // DATA_H

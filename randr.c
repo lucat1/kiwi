@@ -10,9 +10,6 @@
 static void dummy_monitor();
 static void get_randr();
 static void get_outputs();
-static monitor_t *find_monitor(xcb_randr_output_t);
-/* static monitor_t *find_monitor_by_coord(int16_t, int16_t); */
-static monitor_t *find_clones(xcb_randr_output_t, int16_t, int16_t);
 
 int randr_base;
 
@@ -95,10 +92,10 @@ static void get_outputs(xcb_randr_output_t *outputs, int len,
       if (crtc == NULL)
         return;
 
-      if (find_clones(outputs[i], crtc->x, crtc->y) != NULL)
+      if (get_monitor_clones(outputs[i], crtc->x, crtc->y) != NULL)
         continue;
 
-      monitor_t *mon = find_monitor(outputs[i]);
+      monitor_t *mon = get_monitor_by_id(outputs[i]);
       if (mon == NULL) {
         monitor_t *monitor = new_monitor(outputs[i], name, crtc->x, crtc->y,
                                          crtc->width, crtc->height);
@@ -118,7 +115,7 @@ static void get_outputs(xcb_randr_output_t *outputs, int len,
     } else {
       // Check if the monitor was used before
       // becoming disabled.
-      monitor_t *mon = find_monitor(outputs[i]);
+      monitor_t *mon = get_monitor_by_id(outputs[i]);
       if (mon != NULL) {
         // remove the monitor from the currently active ones
         list_remove(&monitors, mon);
@@ -142,46 +139,4 @@ static void get_outputs(xcb_randr_output_t *outputs, int len,
       free(output);
     free(name);
   }
-}
-
-/*
- * Finds a monitor in the list.
- */
-
-static monitor_t *find_monitor(xcb_randr_output_t m) {
-  for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
-    monitor_t *mon = miter->value;
-    if (mon->monitor == m)
-      return mon;
-  }
-
-  return NULL;
-}
-
-/*
- * Find a monitor in the list by its coordinates.
- */
-
-/* static monitor_t *find_monitor_by_coord(int16_t x, int16_t y) { */
-/*   monitor_t *res = NULL; */
-/*   for (list_t *miter = monitors; miter != NULL; miter = miter->next) { */
-/*     monitor_t *mon = miter->value; */
-/*     if (x >= mon->x && x <= mon->x + mon->w && y >= mon->y && */
-/*         y <= mon->y + mon->h) */
-/*       res = mon; */
-/*   } */
-/*   return res; */
-/* } */
-
-/*
- * Find cloned (mirrored) outputs.
- */
-
-static monitor_t *find_clones(xcb_randr_output_t m, int16_t x, int16_t y) {
-  for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
-    monitor_t *mon = miter->value;
-    if (mon->monitor != m && mon->x == x && mon->y == y)
-      return mon;
-  }
-  return NULL;
 }
