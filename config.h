@@ -13,7 +13,7 @@
 // options:
 // - tiling_layout (default)
 // - floating_layout
-#define DEFAULT_LAYOUT tiling_layout
+#define DEFAULT_LAYOUT floating_layout
 
 // type of focus for windows. could be as follows
 // (0) click to focus (default)
@@ -84,6 +84,9 @@ static const keybind_t keys[] = {
     {MODKEY, XK_h, move_rel, {.i = -1}},
     {MODKEY | XCB_MOD_MASK_SHIFT, XK_l, send_rel, {.i = 1}},
     {MODKEY | XCB_MOD_MASK_SHIFT, XK_h, send_rel, {.i = -1}},
+
+    {MODKEY, XK_f, set_layout, {.l = LAYOUT_FLOATING}},
+    {MODKEY, XK_t, set_layout, {.l = LAYOUT_TILING}},
 
     WS(XK_1, 0),
     WS(XK_2, 1),

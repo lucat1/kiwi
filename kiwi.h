@@ -23,6 +23,7 @@ void send_to(FN_ARG arg);
 void send_rel(FN_ARG arg);
 void move_to(FN_ARG arg);
 void move_rel(FN_ARG arg);
+void set_layout(FN_ARG arg);
 
 /* window behavior */
 void focus_client(client_t *c);

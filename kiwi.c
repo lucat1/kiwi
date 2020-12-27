@@ -2,6 +2,7 @@
 #include "config.h"
 #include "data.h"
 #include "events.h"
+#include "layouts.h"
 #include "randr.h"
 #include "util.h"
 
@@ -60,6 +61,22 @@ void move_to(FN_ARG arg) {
 void move_rel(FN_ARG arg) {
   FN_ARG a = {.i = focdesk->i + arg.i};
   move_to(a);
+}
+
+void set_layout(FN_ARG arg) {
+  switch (arg.l) {
+  case LAYOUT_FLOATING:
+    focdesk->layout = floating_layout;
+    break;
+
+  case LAYOUT_TILING:
+    focdesk->layout = tiling_layout;
+    break;
+
+  default:
+    fail("invalid layout");
+  }
+  focdesk->layout.reposition(focdesk);
 }
 
 void focus_client(client_t *c) {

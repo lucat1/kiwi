@@ -11,7 +11,7 @@
 void _print(const char *t, const char *fn, const char *f, const int l,
             const char *fmt, ...) {
 #else
-void _print(const char *t, const char *fmt, ...) {
+void _print(const char *t, const char *fn, const char *fmt, ...) {
 #endif // DEBUG
   va_list args;
 
@@ -20,7 +20,7 @@ void _print(const char *t, const char *fmt, ...) {
 #ifdef DEBUG
   printf("[%s] (%s in %s:%d) ", t, fn, f, l);
 #else
-  printf("[%s] ", t);
+  printf("[%s] (%s)", fn, t);
 #endif // DEBUG
   vprintf(fmt, args);
   printf("\n");

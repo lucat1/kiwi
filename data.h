@@ -63,6 +63,7 @@ struct monitor {
 struct arg {
   const int i;
   const char **v;
+  const enum layout_type l;
 };
 
 #define FN_ARG const struct arg
