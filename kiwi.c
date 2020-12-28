@@ -176,8 +176,11 @@ void toggle_client(client_t *c) {
 }
 
 void hide_client(client_t *c) {
+  if (c == NULL || !c->mapped)
+    return;
+
 #ifdef DEBUG
-  msg("hiding %p (id: %d)", c, c->window);
+  msg("%p\tclient (%d) -- hidden", c, c->window);
 #endif
 
   c->visibility = HIDDEN;
@@ -185,8 +188,11 @@ void hide_client(client_t *c) {
 }
 
 void show_client(client_t *c) {
+  if (c == NULL || !c->mapped)
+    return;
+
 #ifdef DEBUG
-  msg("showing %p (id: %d)", c, c->window);
+  msg("%p\tclient (%d) -- shown", c, c->window);
 #endif
 
   c->visibility = SHOWN;

@@ -49,7 +49,7 @@
 #define MIN_HEIGHT 40
 
 // program commands, used later in bindings
-static const char *termcmd[] = {"st", NULL};
+static const char *termcmd[] = {"alacritty", NULL};
 static const char *menucmd[] = {"dmenu_run", NULL};
 
 #define WS(k, n)                                                               \

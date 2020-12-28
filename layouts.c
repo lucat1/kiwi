@@ -39,7 +39,19 @@ static bool should_fill(list_t *iter) {
 
     iter = iter->next;
   }
+
   return true;
+}
+
+// returns the first client in the list whwich is mapped
+static client_t *first_mapped(list_t *iter) {
+  while (iter != NULL) {
+    client_t *c = iter->value;
+    if (c->mapped)
+      return c;
+  }
+
+  return NULL;
 }
 
 // repositions the windows in the tiling style.
@@ -53,6 +65,7 @@ static void tiling_reposition(desktop_t *desk) {
 
   int x = 0, y = 0, w = mon->w, h = mon->h;
   const int bw = BORDER_WIDTH * 2;
+  client_t *first = first_mapped(desk->clients);
   for (list_t *iter = desk->clients; iter != NULL; iter = iter->next) {
     bool fill = should_fill(iter->next);
     int width, height;
@@ -60,7 +73,7 @@ static void tiling_reposition(desktop_t *desk) {
     if (c == NULL || !c->mapped)
       continue;
 
-    if (iter == desk->clients) {
+    if (c == first) {
       // drawing the main window
       width = (fill ? w : w * c->split_ratio) - bw;
       height = h - bw;
@@ -72,7 +85,7 @@ static void tiling_reposition(desktop_t *desk) {
 
     move_resize_client(c, mon->x + x, mon->y + y, width, height);
 
-    if (iter == desk->clients) {
+    if (c == first) {
       w -= width + bw;
       x = width + bw;
     } else {
