@@ -21,11 +21,11 @@ static void floating_reposition(desktop_t *desk) {
     if (!c->mapped)
       continue;
 
-    if (c->visibility == HIDDEN)
-      show_client(c);
-
     // restore its previous position
     move_client(c, c->x, c->y, false);
+
+    if (c->visibility == HIDDEN)
+      show_client(c);
   }
 }
 
