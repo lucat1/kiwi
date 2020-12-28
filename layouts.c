@@ -49,6 +49,8 @@ static client_t *first_mapped(list_t *iter) {
     client_t *c = iter->value;
     if (c->mapped)
       return c;
+
+    iter = iter->next;
   }
 
   return NULL;
