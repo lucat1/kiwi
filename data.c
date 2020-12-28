@@ -23,8 +23,8 @@ client_t *new_client(xcb_window_t w) {
   c->motion = MOTION_NONE;
 
   xcb_get_geometry_reply_t *geom = xcb_geometry(dpy, w);
-  c->x = (scr->width_in_pixels - geom->width) / 2;
-  c->y = (scr->height_in_pixels - geom->height) / 2;
+  c->x = (focmon->w - geom->width) / 2;
+  c->y = (focmon->h - geom->height) / 2;
   c->w = geom->width;
   c->h = geom->height;
 
@@ -90,7 +90,7 @@ monitor_t *new_monitor(xcb_randr_output_t monitor, char *name, int16_t x,
 }
 
 // returns the monitor which contains the requested desktop
-monitor_t *get_monitor(desktop_t *desk) {
+monitor_t *get_monitor_for_desktop(desktop_t *desk) {
   for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
     monitor_t *mon = miter->value;
     for (list_t *diter = mon->desktops; diter != NULL; diter = diter->next) {
@@ -99,6 +99,22 @@ monitor_t *get_monitor(desktop_t *desk) {
         return mon;
     }
   }
+  return NULL;
+}
+
+monitor_t *get_monitor_for_client(client_t *c) {
+  for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
+    monitor_t *mon = miter->value;
+    for (list_t *diter = mon->desktops; diter != NULL; diter = diter->next) {
+      desktop_t *desk = diter->value;
+      for (list_t *citer = desk->clients; citer != NULL; citer = citer->next) {
+        client_t *client = citer->value;
+        if (client == c)
+          return mon;
+      }
+    }
+  }
+
   return NULL;
 }
 

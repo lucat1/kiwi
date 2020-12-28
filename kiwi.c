@@ -113,11 +113,16 @@ void move_client(client_t *c, int16_t x, int16_t y, bool save) {
   if (c == NULL)
     return;
 
+  monitor_t *mon;
+  if ((mon = get_monitor_for_client(c)) == NULL)
+    fail("could not get monitor for client");
+
   if (save) {
     c->x = x;
     c->y = y;
   }
-  uint32_t values[2] = {x, y};
+  // move relatively to the monitor coordinates
+  uint32_t values[2] = {mon->x + x, mon->y + y};
   xcb_configure_window(dpy, c->window,
                        XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
 }
@@ -139,11 +144,15 @@ void move_resize_client(client_t *c, int16_t x, int16_t y, uint16_t width,
   if (c == NULL)
     return;
 
+  monitor_t *mon;
+  if ((mon = get_monitor_for_client(c)) == NULL)
+    fail("could not get monitor for client");
+
   c->x = x;
   c->y = y;
   c->w = width;
   c->h = height;
-  uint32_t values[4] = {x, y, width, height};
+  uint32_t values[4] = {mon->x + x, mon->y + y, width, height};
   xcb_configure_window(dpy, c->window,
                        XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y |
                            XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
@@ -221,7 +230,7 @@ void focus_desktop(desktop_t *desk) {
   if (desk->i == focdesk->i)
     return;
 
-  monitor_t *mon = get_monitor(desk);
+  monitor_t *mon = get_monitor_for_desktop(desk);
   if (mon == NULL)
     die("could not find monitor for desktop");
 

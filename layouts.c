@@ -30,19 +30,18 @@ static void floating_reposition(desktop_t *desk) {
 // positioned to the left,while all others "secondary"
 // windows to be stacked one upon the other to the right.
 static void tiling_reposition(desktop_t *desk) {
-  monitor_t *mon = get_monitor(desk);
+  monitor_t *mon = get_monitor_for_desktop(desk);
   if (mon == NULL)
     fail("could not get monitor for desktop");
 
-  int i = 0, x = 0, y = 0, w = mon->w, h = mon->h;
+  int x = 0, y = 0, w = mon->w, h = mon->h;
   const int bw = BORDER_WIDTH * 2;
-  list_t *iter = desk->clients;
-  while (iter != NULL) {
-    bool fill = i == list_size(desk->clients) - 1;
+  for (list_t *iter = desk->clients; iter != NULL; iter = iter->next) {
+    bool fill = iter->next == NULL;
     int width, height;
     client_t *c = (client_t *)iter->value;
 
-    if (i == 0) {
+    if (iter == desk->clients) {
       // drawing the main window
       width = (fill ? w : w * c->split_ratio) - bw;
       height = h - bw;
@@ -55,15 +54,12 @@ static void tiling_reposition(desktop_t *desk) {
     // TODO: guess fix positioning inside move_resize_client itself
     move_resize_client(c, mon->x + x, mon->y + y, width, height);
 
-    if (i == 0) {
+    if (iter == desk->clients) {
       w -= width + bw;
       x = width + bw;
     } else {
       h -= height + bw;
       y += height + bw;
     }
-
-    i++;
-    iter = iter->next;
   }
 }

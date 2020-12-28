@@ -49,6 +49,7 @@ void handle_map_request(xcb_generic_event_t *ev) {
                                        values);
   xcb_map_window(dpy, c->window);
 
+  move_client(c, c->x, c->y, false);
   border_width(c, BORDER_WIDTH);
   focus_client(c);
   focdesk->layout.reposition(focdesk);
@@ -110,17 +111,21 @@ void handle_button_press(xcb_generic_event_t *ev) {
 void handle_motion_notify(xcb_generic_event_t *ev) {
   UNUSED(ev);
   client_t *c = focdesk->focused;
+  if (c == NULL)
+    fail("could not get client");
+  monitor_t *mon = get_monitor_for_client(c);
+  if (mon == NULL)
+    fail("could not get monitor for client");
+
   xcb_query_pointer_cookie_t coord = xcb_query_pointer(dpy, scr->root);
   xcb_query_pointer_reply_t *poin = xcb_query_pointer_reply(dpy, coord, 0);
   if (c->motion == MOTION_RESIZING) {
-    int16_t x =
-        ((poin->root_x + c->w + (2 * BORDER_WIDTH)) > scr->width_in_pixels)
-            ? (scr->width_in_pixels - c->w - (2 * BORDER_WIDTH))
-            : poin->root_x;
-    int16_t y =
-        ((poin->root_y + c->h + (2 * BORDER_WIDTH)) > scr->height_in_pixels)
-            ? (scr->height_in_pixels - c->h - (2 * BORDER_WIDTH))
-            : poin->root_y;
+    int16_t x = ((poin->root_x + c->w + (2 * BORDER_WIDTH)) > mon->w)
+                    ? (mon->w - c->w - (2 * BORDER_WIDTH))
+                    : poin->root_x;
+    int16_t y = ((poin->root_y + c->h + (2 * BORDER_WIDTH)) > mon->h)
+                    ? (mon->h - c->h - (2 * BORDER_WIDTH))
+                    : poin->root_y;
     move_client(c, x, y, true);
   } else if (c->motion == MOTION_DRAGGING) {
     if (!((poin->root_x <= c->x) || (poin->root_y <= c->y))) {
