@@ -103,6 +103,10 @@ void focus_client(client_t *c) {
   xcb_set_input_focus(dpy, XCB_INPUT_FOCUS_POINTER_ROOT, c->window,
                       XCB_CURRENT_TIME);
   xcb_flush(dpy);
+
+#if DEBUG
+  print_monitors();
+#endif
 }
 
 void move_client(client_t *c, int16_t x, int16_t y, bool save) {

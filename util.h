@@ -29,6 +29,7 @@ void _print(const char *t, const char *fn, const char *fmt, ...);
 bool xcb_has_error(xcb_connection_t *dpy);
 #ifdef DEBUG
 char *xcb_event_str(int type);
+void print_monitors();
 #endif // DEBUG
 
 xcb_keycode_t *xcb_get_keycode(xcb_connection_t *dpy, xcb_keysym_t keysym);

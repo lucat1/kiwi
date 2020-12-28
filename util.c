@@ -1,4 +1,5 @@
 #include "util.h"
+#include "kiwi.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -123,6 +124,37 @@ char *xcb_event_str(int type) {
   default:
     return "undefined event";
   }
+}
+
+void print_monitors() {
+  printf("--------------------------------------------------------\n");
+  char str[9];
+  for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
+    monitor_t *mon = miter->value;
+    printf("%p\tmonitor (%d) -- %s (%d+%d+%dx%d)\n", (void *)mon, mon->monitor,
+           mon->name, mon->x, mon->y, mon->w, mon->h);
+    for (list_t *diter = mon->desktops; diter != NULL; diter = diter->next) {
+      desktop_t *desk = diter->value;
+      if (mon->focused == desk)
+        sprintf(str, "focused");
+      else
+        sprintf(str, "inactive");
+      printf("%p\t\tdesktop (%d) -- %s\n", (void *)desk, desk->i, str);
+
+      for (list_t *citer = desk->clients; citer != NULL; citer = citer->next) {
+        client_t *c = citer->value;
+        if (c == desk->focused)
+          sprintf(str, "focused");
+        else if (c->visibility == HIDDEN)
+          sprintf(str, "hidden");
+        else
+          sprintf(str, "shown");
+
+        printf("%p\t\t\tclient (%d) -- %s\n", (void *)c, c->window, str);
+      }
+    }
+  }
+  printf("--------------------------------------------------------\n");
 }
 #endif // DEBUG
 

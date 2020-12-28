@@ -14,7 +14,7 @@ kiwi: $(OBJ)
 	@$(CC) $(LDFLAGS) -o $(BIN) $(OBJ) 
 
 dev: CFLAGS += -DDEBUG
-dev: clean kiwi
+dev: kiwi
 
 debug: CFLAGS += -DDEBUG -DVERBOSE -ggdb
 debug: clean kiwi

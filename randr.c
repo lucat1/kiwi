@@ -33,8 +33,15 @@ void setup_randr() {
 
 // use a dummy monitor for when we can't identify monitors with randr
 static void dummy_monitor() {
-  monitor_t *mon = new_monitor(0, "dummy", 0, 0, scr->width_in_pixels,
-                               scr->height_in_pixels);
+  monitor_t *mon;
+  // update the existing monitor on resize
+  if ((mon = get_monitor_by_id(0)) != NULL) {
+    mon->w = scr->width_in_pixels;
+    mon->h = scr->height_in_pixels;
+    return;
+  }
+  mon = new_monitor(0, "dummy", 0, 0, scr->width_in_pixels,
+                    scr->height_in_pixels);
   list_append(&monitors, mon);
 }
 
@@ -58,6 +65,9 @@ void get_randr() {
     dummy_monitor();
 
   free(r);
+#if DEBUG
+  print_monitors();
+#endif
 }
 
 static void get_outputs(xcb_randr_output_t *outputs, int len,
@@ -92,10 +102,14 @@ static void get_outputs(xcb_randr_output_t *outputs, int len,
       if (crtc == NULL)
         return;
 
-      if (get_monitor_clones(outputs[i], crtc->x, crtc->y) != NULL)
-        continue;
+      monitor_t *mon;
+      if ((mon = get_monitor_clones(outputs[i], crtc->x, crtc->y)) != NULL) {
+        // when we have a clone always keep the one with the biggest resolution
+        if (mon->w < crtc->width || mon->x < crtc->height)
+          goto update;
+      }
 
-      monitor_t *mon = get_monitor_by_id(outputs[i]);
+      mon = get_monitor_by_id(outputs[i]);
       if (mon == NULL) {
         monitor_t *monitor = new_monitor(outputs[i], name, crtc->x, crtc->y,
                                          crtc->width, crtc->height);
@@ -104,11 +118,13 @@ static void get_outputs(xcb_randr_output_t *outputs, int len,
         // update position if already available
         mon->x = crtc->x;
         mon->y = crtc->y;
+      update:
         mon->w = crtc->width;
         mon->h = crtc->height;
 
-        // TODO: arrange?
-        /* arrange_by_monitor(mon); */
+        // reposition windows on the focused desktop
+        if (mon->focused != NULL)
+          mon->focused->layout.reposition(mon->focused);
       }
 
       free(crtc);
@@ -132,7 +148,8 @@ static void get_outputs(xcb_randr_output_t *outputs, int len,
         }
 
         free(mon);
-      }
+      } else
+        warn("removed unregistered monitor: %d", outputs[i]);
     }
 
     if (output != NULL)
