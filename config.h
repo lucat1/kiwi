@@ -8,6 +8,7 @@
 #include <xcb/xcb_keysyms.h>
 
 #define MODKEY XCB_MOD_MASK_4
+#define SHIFT XCB_MOD_MASK_SHIFT
 
 // defines the default layout for new desktops
 // options:
@@ -66,8 +67,8 @@ static const keybind_t keys[] = {
 
     {MODKEY, XK_l, move_rel, {.i = 1}},
     {MODKEY, XK_h, move_rel, {.i = -1}},
-    {MODKEY | XCB_MOD_MASK_SHIFT, XK_l, send_rel, {.i = 1}},
-    {MODKEY | XCB_MOD_MASK_SHIFT, XK_h, send_rel, {.i = -1}},
+    {MODKEY | SHIFT, XK_l, send_rel, {.i = 1}},
+    {MODKEY | SHIFT, XK_h, send_rel, {.i = -1}},
 
     {MODKEY, XK_f, set_layout, {.l = LAYOUT_FLOATING}},
     {MODKEY, XK_t, set_layout, {.l = LAYOUT_TILING}},
@@ -78,7 +79,7 @@ static const keybind_t keys[] = {
     WS(XK_4, 3),
     WS(XK_5, 4),
 
-    {MODKEY | XCB_MOD_MASK_SHIFT, XK_q, closewm, noarg},
+    {MODKEY | SHIFT, XK_q, closewm, noarg},
 };
 
 #endif // CONFIG_H
