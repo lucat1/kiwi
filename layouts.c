@@ -15,7 +15,6 @@ const layout_t floating_layout = {.type = LAYOUT_FLOATING,
 
 // just shows hidden windows as they are moved manually by the user
 static void floating_reposition(desktop_t *desk) {
-  list_t *iter = desk->clients;
   for (list_t *iter = desk->clients; iter != NULL; iter = iter->next) {
     client_t *c = iter->value;
     if (!c->mapped)
