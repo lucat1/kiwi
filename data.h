@@ -35,6 +35,8 @@ struct layout {
   enum layout_type type;
 
   void (*reposition)(desktop_t *d);
+  void (*motion)(xcb_query_pointer_reply_t *pointer, client_t *c,
+                 monitor_t *mon);
 
   void (*move_left)(desktop_t *d);
   void (*move_right)(desktop_t *d);

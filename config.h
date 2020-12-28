@@ -12,8 +12,8 @@
 
 // defines the default layout for new desktops
 // options:
-// - tiling_layout (default)
-// - floating_layout
+// - tiling_layout
+// - floating_layout (default)
 #define DEFAULT_LAYOUT floating_layout
 
 // type of focus for windows. could be as follows
