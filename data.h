@@ -21,6 +21,7 @@ enum motion_type { MOTION_NONE, MOTION_DRAGGING, MOTION_RESIZING };
 struct client {
   xcb_window_t window;
   float split_ratio;
+  bool mapped;
   enum split_direction split_direction;
   enum motion_type motion;
   enum visibility visibility;

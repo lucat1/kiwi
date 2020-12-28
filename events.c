@@ -47,9 +47,9 @@ void handle_map_request(xcb_generic_event_t *ev) {
                         XCB_EVENT_MASK_FOCUS_CHANGE};
   xcb_change_window_attributes_checked(dpy, c->window, XCB_CW_EVENT_MASK,
                                        values);
-  xcb_map_window(dpy, c->window);
 
-  move_client(c, c->x, c->y, false);
+  c->mapped = true;
+  show_client(c);
   border_width(c, BORDER_WIDTH);
   focus_client(c);
   focdesk->layout.reposition(focdesk);
@@ -60,6 +60,7 @@ void handle_destroy_notify(xcb_generic_event_t *ev) {
   client_t *c = get_client(e->window);
 
   // discard any window information
+  c->mapped = false;
   xcb_ungrab_button(dpy, XCB_BUTTON_INDEX_1, c->window, XCB_NONE);
   xcb_kill_client(dpy, c->window);
 

@@ -150,7 +150,8 @@ void print_monitors() {
         else
           sprintf(str, "shown");
 
-        printf("%p\t\t\tclient (%d) -- %s\n", (void *)c, c->window, str);
+        printf("%p\t\t\tclient (%d) -- [%d] %s\n", (void *)c, c->window,
+               c->mapped, str);
       }
     }
   }

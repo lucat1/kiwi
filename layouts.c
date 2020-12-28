@@ -16,13 +16,31 @@ const layout_t floating_layout = {.type = LAYOUT_FLOATING,
 // just shows hidden windows as they are moved manually by the user
 static void floating_reposition(desktop_t *desk) {
   list_t *iter = desk->clients;
-  while (iter != NULL) {
-    client_t *c = (client_t *)iter->value;
+  for (list_t *iter = desk->clients; iter != NULL; iter = iter->next) {
+    client_t *c = iter->value;
+    if (!c->mapped)
+      continue;
+
     if (c->visibility == HIDDEN)
       show_client(c);
 
+    // restore its previous position
+    move_client(c, c->x, c->y, false);
+  }
+}
+
+// checks whether there is any following client to be drawn and returns true if
+// there are none (which means the current one should fill all the remaining
+// space)
+static bool should_fill(list_t *iter) {
+  while (iter != NULL) {
+    client_t *c = iter->value;
+    if (c->mapped)
+      return false;
+
     iter = iter->next;
   }
+  return true;
 }
 
 // repositions the windows in the tiling style.
@@ -37,9 +55,11 @@ static void tiling_reposition(desktop_t *desk) {
   int x = 0, y = 0, w = mon->w, h = mon->h;
   const int bw = BORDER_WIDTH * 2;
   for (list_t *iter = desk->clients; iter != NULL; iter = iter->next) {
-    bool fill = iter->next == NULL;
+    bool fill = should_fill(iter->next);
     int width, height;
-    client_t *c = (client_t *)iter->value;
+    client_t *c = iter->value;
+    if (c == NULL || !c->mapped)
+      continue;
 
     if (iter == desk->clients) {
       // drawing the main window

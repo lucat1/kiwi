@@ -17,9 +17,10 @@ client_t *new_client(xcb_window_t w) {
 
   client_t *c = malloc(sizeof(client_t));
   c->window = w;
+  c->mapped = false;
   c->split_ratio = SPLIT_RATIO;
   c->split_direction = SPLIT_DIRECTION;
-  c->visibility = SHOWN;
+  c->visibility = HIDDEN;
   c->motion = MOTION_NONE;
 
   xcb_get_geometry_reply_t *geom = xcb_geometry(dpy, w);
