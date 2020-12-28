@@ -51,7 +51,6 @@ static void tiling_reposition(desktop_t *desk) {
       height = (fill ? h : h * c->split_ratio) - bw;
     }
 
-    // TODO: guess fix positioning inside move_resize_client itself
     move_resize_client(c, mon->x + x, mon->y + y, width, height);
 
     if (iter == desk->clients) {
