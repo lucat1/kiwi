@@ -32,12 +32,10 @@ static void floating_reposition(desktop_t *desk) {
 // there are none (which means the current one should fill all the remaining
 // space)
 static bool should_fill(list_t *iter) {
-  while (iter != NULL) {
+  for (; iter != NULL; iter = iter->next) {
     client_t *c = iter->value;
     if (c->mapped)
       return false;
-
-    iter = iter->next;
   }
 
   return true;
@@ -45,12 +43,10 @@ static bool should_fill(list_t *iter) {
 
 // returns the first client in the list whwich is mapped
 static client_t *first_mapped(list_t *iter) {
-  while (iter != NULL) {
+  for (; iter != NULL; iter = iter->next) {
     client_t *c = iter->value;
     if (c->mapped)
       return c;
-
-    iter = iter->next;
   }
 
   return NULL;
