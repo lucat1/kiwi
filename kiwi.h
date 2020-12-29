@@ -27,10 +27,11 @@ void set_layout(FN_ARG arg);
 
 /* window behavior */
 void focus_client(client_t *c);
-void move_client(client_t *c, int16_t x, int16_t y);
-void resize_client(client_t *c, uint16_t width, uint16_t height);
+void move_client(client_t *c, int16_t x, int16_t y, enum layout_type t);
+void resize_client(client_t *c, uint16_t width, uint16_t height,
+                   enum layout_type t);
 void move_resize_client(client_t *c, int16_t x, int16_t y, uint16_t width,
-                        uint16_t height);
+                        uint16_t height, enum layout_type t);
 void hide_client(client_t *c);
 void show_client(client_t *c);
 void focus_desktop(desktop_t *desk);

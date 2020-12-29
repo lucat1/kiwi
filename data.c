@@ -24,10 +24,10 @@ client_t *new_client(xcb_window_t w) {
   c->motion = MOTION_NONE;
 
   xcb_get_geometry_reply_t *geom = xcb_geometry(dpy, w);
-  c->x = (focmon->w - geom->width) / 2;
-  c->y = (focmon->h - geom->height) / 2;
-  c->w = geom->width;
-  c->h = geom->height;
+  c->x = c->floating_x = (focmon->w - geom->width) / 2;
+  c->y = c->floating_y = (focmon->h - geom->height) / 2;
+  c->w = c->floating_w = geom->width;
+  c->h = c->floating_h = geom->height;
 
   free(geom);
   return c;

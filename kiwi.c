@@ -109,7 +109,7 @@ void focus_client(client_t *c) {
 #endif
 }
 
-void move_client(client_t *c, int16_t x, int16_t y) {
+void move_client(client_t *c, int16_t x, int16_t y, enum layout_type t) {
   if (c == NULL)
     return;
 
@@ -117,20 +117,31 @@ void move_client(client_t *c, int16_t x, int16_t y) {
   if ((mon = get_monitor_for_client(c)) == NULL)
     fail("could not get monitor for client");
 
-  c->x = x;
-  c->y = y;
+  if (t == LAYOUT_FLOATING) {
+    c->floating_x = x;
+    c->floating_y = y;
+  } else {
+    c->x = x;
+    c->y = y;
+  }
   // move relatively to the monitor coordinates
   uint32_t values[2] = {mon->x + x, mon->y + y};
   xcb_configure_window(dpy, c->window,
                        XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
 }
 
-void resize_client(client_t *c, uint16_t width, uint16_t height) {
+void resize_client(client_t *c, uint16_t width, uint16_t height,
+                   enum layout_type t) {
   if (c == NULL)
     return;
 
-  c->w = width;
-  c->h = height;
+  if (t == LAYOUT_FLOATING) {
+    c->floating_w = width;
+    c->floating_h = height;
+  } else {
+    c->w = width;
+    c->h = height;
+  }
   uint32_t values[2] = {width, height};
   xcb_configure_window(dpy, c->window,
                        XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
@@ -138,7 +149,7 @@ void resize_client(client_t *c, uint16_t width, uint16_t height) {
 }
 
 void move_resize_client(client_t *c, int16_t x, int16_t y, uint16_t width,
-                        uint16_t height) {
+                        uint16_t height, enum layout_type t) {
   if (c == NULL)
     return;
 
@@ -146,15 +157,8 @@ void move_resize_client(client_t *c, int16_t x, int16_t y, uint16_t width,
   if ((mon = get_monitor_for_client(c)) == NULL)
     fail("could not get monitor for client");
 
-  c->x = x;
-  c->y = y;
-  c->w = width;
-  c->h = height;
-  uint32_t values[4] = {mon->x + x, mon->y + y, width, height};
-  xcb_configure_window(dpy, c->window,
-                       XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y |
-                           XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
-                       values);
+  move_client(c, x, y, t);
+  resize_client(c, width, height, t);
 }
 
 // borrowed from bspwm
