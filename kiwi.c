@@ -117,6 +117,8 @@ void move_client(client_t *c, int16_t x, int16_t y) {
   if ((mon = get_monitor_for_client(c)) == NULL)
     fail("could not get monitor for client");
 
+  c->x = x;
+  c->y = y;
   // move relatively to the monitor coordinates
   uint32_t values[2] = {mon->x + x, mon->y + y};
   xcb_configure_window(dpy, c->window,
@@ -244,6 +246,7 @@ void focus_desktop(desktop_t *desk) {
   msg("monitor %s --> %s", focmon->name, focmon->name);
 #endif
 
+  // TODO: do not hide if the desktop is still being used on another monitor
   for (list_t *citer = focdesk->clients; citer != NULL; citer = citer->next) {
     hide_client(citer->value);
   }

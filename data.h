@@ -27,6 +27,9 @@ struct client {
   enum visibility visibility;
   int16_t x, y;
   uint16_t w, h;
+
+  int16_t floating_x, floating_y;
+  uint16_t floating_w, floating_h;
 };
 
 enum layout_type { LAYOUT_TILING, LAYOUT_FLOATING };
