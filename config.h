@@ -26,7 +26,7 @@
 #define DEFAULT_DESKTOPS 5
 
 // follow sent windows to their new desktops
-#define FOLLOW_SEND 1
+#define FOLLOW_SEND 0
 
 // creates the destination desktop if it doesn't exist
 #define CREATE_DESKTOP_IF_NOT_EXISTS 1
