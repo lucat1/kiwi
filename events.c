@@ -78,6 +78,7 @@ void handle_destroy_notify(xcb_generic_event_t *ev) {
 void handle_button_press(xcb_generic_event_t *ev) {
   xcb_button_press_event_t *e = (xcb_button_press_event_t *)ev;
   client_t *c = get_client(e->state < MODKEY ? e->event : e->child);
+  // TODO: focus the clicked on monitor
   if (c == NULL || c->window == 0 || c->window == scr->root)
     return;
 

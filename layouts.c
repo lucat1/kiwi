@@ -27,7 +27,7 @@ static void floating_reposition(desktop_t *desk) {
       continue;
 
     // restore its previous position
-    move_client(c, c->x, c->y, false);
+    move_client(c, c->x, c->y);
 
     if (c->visibility == HIDDEN)
       show_client(c);
@@ -43,7 +43,7 @@ static void floating_motion(xcb_query_pointer_reply_t *pointer, client_t *c,
     int16_t y = ((pointer->root_y + c->h + (2 * BORDER_WIDTH)) > mon->h)
                     ? (mon->h - c->h - (2 * BORDER_WIDTH))
                     : pointer->root_y;
-    move_client(c, x, y, true);
+    move_client(c, x, y);
   } else if (c->motion == MOTION_DRAGGING) {
     if (!((pointer->root_x <= c->x) || (pointer->root_y <= c->y))) {
       uint16_t width = pointer->root_x - c->x - BORDER_WIDTH;

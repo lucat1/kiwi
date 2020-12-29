@@ -109,7 +109,7 @@ void focus_client(client_t *c) {
 #endif
 }
 
-void move_client(client_t *c, int16_t x, int16_t y, bool save) {
+void move_client(client_t *c, int16_t x, int16_t y) {
   if (c == NULL)
     return;
 
@@ -117,10 +117,6 @@ void move_client(client_t *c, int16_t x, int16_t y, bool save) {
   if ((mon = get_monitor_for_client(c)) == NULL)
     fail("could not get monitor for client");
 
-  if (save) {
-    c->x = x;
-    c->y = y;
-  }
   // move relatively to the monitor coordinates
   uint32_t values[2] = {mon->x + x, mon->y + y};
   xcb_configure_window(dpy, c->window,
@@ -204,6 +200,9 @@ void send_client(client_t *c, int i) {
     return;
 
   desktop_t *desk = get_desktop(i);
+  // don't send a client to the same desktop it's already on
+  if (desk == focdesk)
+    return;
   if (desk == NULL)
 #if CREATE_DESKTOP_IF_NOT_EXISTS
     while (desktop_count <= i) {
