@@ -281,6 +281,15 @@ void send_client(client_t *c, int i) {
   if (desk->layout.type == LAYOUT_FLOATING)
     fit_client(c, mon);
 
+  // show the window if it's already on a visible desktop in another monitor
+  for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
+    monitor_t *mon = miter->value;
+    if (mon->focused == desk) {
+      show_client(c);
+      desk->layout.reposition(desk);
+    }
+  }
+
 #if FOLLOW_SEND
   focus_desktop(desk);
 #endif
