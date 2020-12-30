@@ -1,5 +1,5 @@
 #!/bin/sh
 
-make clean
-make dev
+# make clean
+make debug
 sudo make install

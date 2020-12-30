@@ -157,6 +157,39 @@ void move_resize_client(client_t *c, int16_t x, int16_t y, uint16_t w,
                        values);
 }
 
+// fits a client to its new monitor (only needed for floating mode)
+void fit_client(client_t *c, monitor_t *mon) {
+#if DEBUG
+  msg("%p\tfitting client %d (%d+%d+%dx%d) to monior %s (%d+%d+%dx%d)", c,
+      c->window, c->x, c->y, c->w, c->h, mon->name, mon->x, mon->y, mon->w,
+      mon->h);
+#endif
+
+  if (c->floating_w + (BORDER_WIDTH * 2) > mon->w)
+    move_resize_client(c, 0, c->floating_y, mon->w - (BORDER_WIDTH * 2),
+                       c->floating_h);
+  else if (c->floating_w + c->floating_x + (BORDER_WIDTH * 2) > mon->w)
+    move_client(c, mon->w - c->floating_w - (BORDER_WIDTH * 2), c->floating_y);
+#if DEBUG && VERBOSE
+  else
+    msg("%p\tno x-movement to do", c);
+#endif
+
+  if (c->floating_h + (BORDER_WIDTH * 2) > mon->h)
+    move_resize_client(c, c->actual_x, 0, c->actual_x,
+                       mon->h - (BORDER_WIDTH * 2));
+  else if (c->floating_h + c->floating_y + (BORDER_WIDTH * 2) > mon->h)
+    move_client(c, c->actual_x, mon->h - c->floating_h - (BORDER_WIDTH * 2));
+#if DEBUG
+#if VERBOSE
+  else
+    msg("%p\tno y-movement to do", c);
+#endif // VERBOSE
+#endif // DEBUG
+
+  save_client(c, LAYOUT_FLOATING);
+}
+
 // saves the actual coordinates into the mode-specific ones
 void save_client(client_t *c, enum layout_type t) {
   if (t == LAYOUT_FLOATING) {
@@ -229,6 +262,7 @@ void send_client(client_t *c, int i) {
 #else
     return;
 #endif
+  monitor_t *mon = get_monitor_for_desktop(desk);
 
   // remove it from the old workspace and refocus
   list_remove(&focdesk->clients, c);
@@ -242,6 +276,10 @@ void send_client(client_t *c, int i) {
   list_append(&desk->clients, c);
   stack_push(&desk->focus_stack, c);
   desk->focused = c;
+
+  // fit the client to its new monitor
+  if (desk->layout.type == LAYOUT_FLOATING)
+    fit_client(c, mon);
 
 #if FOLLOW_SEND
   focus_desktop(desk);
@@ -258,8 +296,8 @@ void focus_desktop(desktop_t *desk) {
 
 #ifdef DEBUG
   msg("desktop %d --> %d", focdesk->i, desk->i);
-  msg("monitor %s --> %s", focmon->name, focmon->name);
-#endif
+  msg("monitor %d --> %d", focmon->monitor, mon->monitor);
+#endif // DEBUG
 
   // only hide the current windows if we're changing to a desktop on the same
   // monitor
@@ -274,10 +312,10 @@ void focus_desktop(desktop_t *desk) {
 
   focmon = mon;
   focmon->focused = desk;
+  focdesk->layout.reposition(focdesk);
   for (list_t *citer = focdesk->clients; citer != NULL; citer = citer->next) {
     show_client(citer->value);
   }
-  focdesk->layout.reposition(focdesk);
   focus_client(focdesk->focused);
 }
 
