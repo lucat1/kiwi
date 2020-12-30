@@ -5,12 +5,13 @@
 #include "list.h"
 #include "util.h"
 
+#define MAX(a, b) (a > b ? a : b)
+#define MIN(a, b) (a > b ? b : a)
+
 static void floating_reposition(desktop_t *desk);
-static void floating_motion(xcb_query_pointer_reply_t *pointer, client_t *c,
-                            monitor_t *mon);
+static void floating_motion(rel_pointer_t *p, client_t *c, monitor_t *mon);
 static void tiling_reposition(desktop_t *desk);
-static void tiling_motion(xcb_query_pointer_reply_t *pointer, client_t *c,
-                          monitor_t *mon);
+static void tiling_motion(rel_pointer_t *p, client_t *c, monitor_t *mon);
 
 const layout_t floating_layout = {.type = LAYOUT_FLOATING,
                                   .reposition = floating_reposition,
@@ -28,31 +29,27 @@ static void floating_reposition(desktop_t *desk) {
 
     // restore its previous position
     move_resize_client(c, c->floating_x, c->floating_y, c->floating_w,
-                       c->floating_h, LAYOUT_FLOATING);
+                       c->floating_h);
 
     if (c->visibility == HIDDEN)
       show_client(c);
   }
 }
 
-static void floating_motion(xcb_query_pointer_reply_t *pointer, client_t *c,
-                            monitor_t *mon) {
-  if (c->motion == MOTION_RESIZING) {
-    int16_t x = ((pointer->root_x + c->w + (2 * BORDER_WIDTH)) > mon->w)
-                    ? (mon->w - c->w - (2 * BORDER_WIDTH))
-                    : pointer->root_x;
-    int16_t y = ((pointer->root_y + c->h + (2 * BORDER_WIDTH)) > mon->h)
-                    ? (mon->h - c->h - (2 * BORDER_WIDTH))
-                    : pointer->root_y;
-    move_client(c, x, y, LAYOUT_FLOATING);
-  } else if (c->motion == MOTION_DRAGGING) {
-    if (!((pointer->root_x <= c->x) || (pointer->root_y <= c->y))) {
-      uint16_t width = pointer->root_x - c->x - BORDER_WIDTH;
-      uint16_t height = pointer->root_y - c->y - BORDER_WIDTH;
-      if (width >= MIN_WIDTH && height >= MIN_HEIGHT) {
-        resize_client(c, width, height, LAYOUT_FLOATING);
-      }
-    }
+static void floating_motion(rel_pointer_t *p, client_t *c, monitor_t *mon) {
+  UNUSED(mon);
+  // TODO: take border into account
+  if (c->motion == MOTION_DRAGGING) {
+    // TODO: prevent window from exiting the screen (bottom left)
+    int16_t x = MIN(mon->w - c->floating_w, MAX(c->floating_x + p->x, 0));
+    int16_t y = MIN(mon->h - c->floating_h, MAX(c->floating_y + p->y, 0));
+    move_client(c, x, y);
+  } else if (c->motion == MOTION_RESIZING) {
+    int16_t w =
+        MIN(mon->w - c->floating_x, MAX(c->floating_w + p->x, MIN_WIDTH));
+    int16_t h =
+        MIN(mon->h - c->floating_y, MAX(c->floating_h + p->y, MIN_HEIGHT));
+    resize_client(c, w, h);
   }
 }
 
@@ -109,7 +106,8 @@ static void tiling_reposition(desktop_t *desk) {
       height = (fill ? h : h * c->split_ratio) - bw;
     }
 
-    move_resize_client(c, mon->x + x, mon->y + y, width, height, LAYOUT_TILING);
+    move_resize_client(c, x, y, width, height);
+    save_client(c, LAYOUT_TILING);
 
     if (c == first) {
       w -= width + bw;
@@ -121,9 +119,8 @@ static void tiling_reposition(desktop_t *desk) {
   }
 }
 
-static void tiling_motion(xcb_query_pointer_reply_t *pointer, client_t *c,
-                          monitor_t *mon) {
-  UNUSED(pointer);
+static void tiling_motion(rel_pointer_t *p, client_t *c, monitor_t *mon) {
+  UNUSED(p);
   UNUSED(c);
   UNUSED(mon);
 }

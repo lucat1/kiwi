@@ -75,10 +75,18 @@ void handle_destroy_notify(xcb_generic_event_t *ev) {
   focdesk->layout.reposition(focdesk);
 }
 
+int16_t start_x, start_y;
 void handle_button_press(xcb_generic_event_t *ev) {
   xcb_button_press_event_t *e = (xcb_button_press_event_t *)ev;
   client_t *c = get_client(e->state < MODKEY ? e->event : e->child);
-  // TODO: focus the clicked on monitor
+  monitor_t *mon = get_monitor_by_coords(e->root_x, e->root_y);
+  if (mon != NULL)
+    focmon = mon;
+
+#if DEBUG
+  print_monitors();
+#endif
+
   if (c == NULL || c->window == 0 || c->window == scr->root)
     return;
 
@@ -93,14 +101,12 @@ void handle_button_press(xcb_generic_event_t *ev) {
     return;
   }
 
-  if (e->detail == 1) {
-    c->motion = MOTION_RESIZING;
-    xcb_warp_pointer(dpy, XCB_NONE, scr->root, 0, 0, 0, 0, c->x, c->y);
-  } else {
+  start_x = e->root_x;
+  start_y = e->root_y;
+  if (e->detail == 1)
     c->motion = MOTION_DRAGGING;
-    xcb_warp_pointer(dpy, XCB_NONE, scr->root, 0, 0, 0, 0, c->x + c->w,
-                     c->y + c->h);
-  }
+  else
+    c->motion = MOTION_RESIZING;
 
   xcb_grab_pointer(dpy, false, scr->root,
                    XCB_EVENT_MASK_BUTTON_RELEASE |
@@ -114,7 +120,12 @@ void handle_motion_notify(xcb_generic_event_t *ev) {
   UNUSED(ev);
   xcb_query_pointer_cookie_t coord = xcb_query_pointer(dpy, scr->root);
   xcb_query_pointer_reply_t *pointer = xcb_query_pointer_reply(dpy, coord, 0);
-  focdesk->layout.motion(pointer, focdesk->focused, focmon);
+  rel_pointer_t *p = malloc(sizeof(rel_pointer_t));
+  p->x = pointer->root_x - focmon->x - start_x;
+  p->y = pointer->root_y - focmon->y - start_y;
+  free(pointer);
+  focdesk->layout.motion(p, focdesk->focused, focmon);
+  free(p);
 }
 
 void handle_configure_notify(xcb_generic_event_t *ev) {
@@ -140,8 +151,6 @@ void handle_configure_notify(xcb_generic_event_t *ev) {
     if (c == NULL || c->motion != MOTION_NONE || c->visibility == HIDDEN)
       return;
 
-    // TODO: check if the window has been moved across two monitors!!
-
     c->x = e->x;
     c->y = e->y;
     c->w = e->width;
@@ -151,8 +160,10 @@ void handle_configure_notify(xcb_generic_event_t *ev) {
 
 void handle_button_release(xcb_generic_event_t *ev) {
   UNUSED(ev);
-  if (focdesk->focused != NULL)
+  if (focdesk->focused != NULL) {
     focdesk->focused->motion = MOTION_NONE;
+    save_client(focdesk->focused, focdesk->layout.type);
+  }
 
   xcb_ungrab_pointer(dpy, XCB_CURRENT_TIME);
 }

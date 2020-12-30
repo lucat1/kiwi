@@ -24,10 +24,10 @@ client_t *new_client(xcb_window_t w) {
   c->motion = MOTION_NONE;
 
   xcb_get_geometry_reply_t *geom = xcb_geometry(dpy, w);
-  c->x = c->floating_x = (focmon->w - geom->width) / 2;
-  c->y = c->floating_y = (focmon->h - geom->height) / 2;
-  c->w = c->floating_w = geom->width;
-  c->h = c->floating_h = geom->height;
+  c->actual_x = c->x = c->floating_x = (focmon->w - geom->width) / 2;
+  c->actual_y = c->y = c->floating_y = (focmon->h - geom->height) / 2;
+  c->actual_w = c->w = c->floating_w = geom->width;
+  c->actual_h = c->h = c->floating_h = geom->height;
 
   free(geom);
   return c;
@@ -74,7 +74,10 @@ desktop_t *get_desktop(int i) {
   return NULL;
 }
 
-void free_desktop(desktop_t *list) { stack_free(list->focus_stack); }
+void free_desktop(desktop_t *list) {
+  stack_free(list->focus_stack);
+  desktop_count--;
+}
 
 monitor_t *new_monitor(xcb_randr_output_t monitor, char *name, int16_t x,
                        int16_t y, uint16_t w, uint16_t h) {
@@ -124,6 +127,20 @@ monitor_t *get_monitor_by_id(xcb_randr_output_t m) {
   for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
     monitor_t *mon = miter->value;
     if (mon->monitor == m)
+      return mon;
+  }
+
+  return NULL;
+}
+
+// find a monitor by its coordinates
+monitor_t *get_monitor_by_coords(int16_t x, int16_t y) {
+  for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
+    monitor_t *mon = miter->value;
+    // mon->x < x < mon->x+mon->w
+    // mon->y < y < mon->y+mon->h
+    if ((x >= mon->x && x <= (mon->x + mon->w)) &&
+        (y >= mon->y && y <= (mon->y + mon->h)))
       return mon;
   }
 

@@ -12,6 +12,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <xcb/xcb.h>
+#include <xcb/xproto.h>
 
 #define ROOT_EVENT_MASK                                                        \
   (XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | \
@@ -109,7 +110,7 @@ void focus_client(client_t *c) {
 #endif
 }
 
-void move_client(client_t *c, int16_t x, int16_t y, enum layout_type t) {
+void move_client(client_t *c, int16_t x, int16_t y) {
   if (c == NULL)
     return;
 
@@ -117,39 +118,27 @@ void move_client(client_t *c, int16_t x, int16_t y, enum layout_type t) {
   if ((mon = get_monitor_for_client(c)) == NULL)
     fail("could not get monitor for client");
 
-  if (t == LAYOUT_FLOATING) {
-    c->floating_x = x;
-    c->floating_y = y;
-  } else {
-    c->x = x;
-    c->y = y;
-  }
-  // move relatively to the monitor coordinates
+  c->actual_x = x;
+  c->actual_y = y;
   uint32_t values[2] = {mon->x + x, mon->y + y};
   xcb_configure_window(dpy, c->window,
                        XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
 }
 
-void resize_client(client_t *c, uint16_t width, uint16_t height,
-                   enum layout_type t) {
+void resize_client(client_t *c, uint16_t w, uint16_t h) {
   if (c == NULL)
     return;
 
-  if (t == LAYOUT_FLOATING) {
-    c->floating_w = width;
-    c->floating_h = height;
-  } else {
-    c->w = width;
-    c->h = height;
-  }
-  uint32_t values[2] = {width, height};
+  c->actual_w = w;
+  c->actual_h = h;
+  uint32_t values[2] = {w, h};
   xcb_configure_window(dpy, c->window,
                        XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
                        values);
 }
 
-void move_resize_client(client_t *c, int16_t x, int16_t y, uint16_t width,
-                        uint16_t height, enum layout_type t) {
+void move_resize_client(client_t *c, int16_t x, int16_t y, uint16_t w,
+                        uint16_t h) {
   if (c == NULL)
     return;
 
@@ -157,8 +146,30 @@ void move_resize_client(client_t *c, int16_t x, int16_t y, uint16_t width,
   if ((mon = get_monitor_for_client(c)) == NULL)
     fail("could not get monitor for client");
 
-  move_client(c, x, y, t);
-  resize_client(c, width, height, t);
+  c->actual_x = x;
+  c->actual_y = y;
+  c->actual_w = w;
+  c->actual_h = h;
+  uint32_t values[4] = {mon->x + x, mon->y + y, w, h};
+  xcb_configure_window(dpy, c->window,
+                       XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y |
+                           XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
+                       values);
+}
+
+// saves the actual coordinates into the mode-specific ones
+void save_client(client_t *c, enum layout_type t) {
+  if (t == LAYOUT_FLOATING) {
+    c->floating_x = c->actual_x;
+    c->floating_y = c->actual_y;
+    c->floating_w = c->actual_w;
+    c->floating_h = c->actual_h;
+  } else {
+    c->x = c->actual_x;
+    c->y = c->actual_y;
+    c->w = c->actual_w;
+    c->h = c->actual_h;
+  }
 }
 
 // borrowed from bspwm
@@ -317,15 +328,14 @@ static void setup() {
   if (list_size(monitors) < 1)
     die("randr: no monitors found");
 
-  // setup the the default desktops for each monitor
-  for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
-    monitor_t *mon = miter->value;
-    for (int i = 0; i < DEFAULT_DESKTOPS; i++)
-      list_append(&mon->desktops, new_desktop(DEFAULT_LAYOUT));
-    mon->focused = mon->desktops->value;
-  }
-  focmon = monitors->value; // focus the first monitor
-  focmon->focused = focmon->desktops->value;
+  // focus the first monitor
+  focmon = monitors->value;
+}
+
+void setup_desktops(monitor_t *mon) {
+  for (int i = 0; i < DEFAULT_DESKTOPS; i++)
+    list_append(&mon->desktops, new_desktop(DEFAULT_LAYOUT));
+  mon->focused = mon->desktops->value;
 }
 
 void clean() {

@@ -12,6 +12,7 @@ typedef struct layout layout_t;
 typedef struct desktop desktop_t;
 typedef struct monitor monitor_t;
 typedef struct keybind keybind_t;
+typedef struct rel_pointer rel_pointer_t;
 typedef struct handler_func handler_func_t;
 
 enum split_direction { SPLIT_VERTICAL, SPLIT_HORIZONTAL };
@@ -25,8 +26,12 @@ struct client {
   enum split_direction split_direction;
   enum motion_type motion;
   enum visibility visibility;
+
   int16_t x, y;
   uint16_t w, h;
+
+  int16_t actual_x, actual_y;
+  uint16_t actual_w, actual_h;
 
   int16_t floating_x, floating_y;
   uint16_t floating_w, floating_h;
@@ -38,8 +43,7 @@ struct layout {
   enum layout_type type;
 
   void (*reposition)(desktop_t *d);
-  void (*motion)(xcb_query_pointer_reply_t *pointer, client_t *c,
-                 monitor_t *mon);
+  void (*motion)(rel_pointer_t *p, client_t *c, monitor_t *mon);
 
   void (*move_left)(desktop_t *d);
   void (*move_right)(desktop_t *d);
@@ -64,6 +68,10 @@ struct monitor {
   uint16_t w, h;
   desktop_t *focused;
   list_t *desktops;
+};
+
+struct rel_pointer {
+  int16_t x, y;
 };
 
 struct arg {
@@ -97,6 +105,7 @@ monitor_t *new_monitor(xcb_randr_output_t monitor, char *name, int16_t x,
 monitor_t *get_monitor_for_desktop(desktop_t *desk);
 monitor_t *get_monitor_for_client(client_t *c);
 monitor_t *get_monitor_by_id(xcb_randr_output_t m);
+monitor_t *get_monitor_by_coords(int16_t x, int16_t y);
 monitor_t *get_monitor_clones(xcb_randr_output_t m, int16_t x, int16_t y);
 
 #endif // DATA_H

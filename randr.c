@@ -43,6 +43,7 @@ static void dummy_monitor() {
   mon = new_monitor(0, "dummy", 0, 0, scr->width_in_pixels,
                     scr->height_in_pixels);
   list_append(&monitors, mon);
+  setup_desktops(mon);
 }
 
 void get_randr() {
@@ -114,6 +115,7 @@ static void get_outputs(xcb_randr_output_t *outputs, int len,
         monitor_t *monitor = new_monitor(outputs[i], name, crtc->x, crtc->y,
                                          crtc->width, crtc->height);
         list_append(&monitors, monitor);
+        setup_desktops(monitor);
       } else {
         // update position if already available
         mon->x = crtc->x;
@@ -141,12 +143,17 @@ static void get_outputs(xcb_randr_output_t *outputs, int len,
         if (monitors == NULL || (replacement = monitors->value) == NULL)
           die("no more monitors remaining, could not display content");
 
-        // move all desktops to the new replacement monitor
+        // move all clients to the new replacement desktop
         for (list_t *diter = mon->desktops; diter != NULL;
              diter = diter->next) {
-          list_append(&replacement->desktops, diter->value);
+          desktop_t *desk = diter->value;
+          for (list_t *citer = desk->clients; citer != NULL;
+               citer = citer->next) {
+            list_append(&replacement->focused->clients, citer->value);
+          }
         }
 
+        list_free(mon->desktops, (void (*)(void *))free_desktop);
         free(mon);
       } else
         warn("removed unregistered monitor: %d", outputs[i]);
