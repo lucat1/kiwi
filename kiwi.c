@@ -261,10 +261,13 @@ void focus_desktop(desktop_t *desk) {
   msg("monitor %s --> %s", focmon->name, focmon->name);
 #endif
 
-  // TODO: do not hide if the desktop is still being used on another monitor
-  for (list_t *citer = focdesk->clients; citer != NULL; citer = citer->next) {
-    hide_client(citer->value);
-  }
+  // only hide the current windows if we're changing to a desktop on the same
+  // monitor
+  if (mon == focmon)
+    for (list_t *citer = focdesk->clients; citer != NULL; citer = citer->next) {
+      hide_client(citer->value);
+    }
+
   // TODO: remove input focus
   if (focdesk->focused != NULL)
     border_color(focdesk->focused, false);
