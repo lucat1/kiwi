@@ -164,6 +164,8 @@ static void get_outputs(xcb_randr_output_t *outputs, int len,
 
       list_free(mon->desktops, (void (*)(void *))free_desktop);
       free(mon);
+      if (focmon == mon)
+        focmon = mon = NULL;
     }
 
     free(output);

@@ -43,28 +43,28 @@ bool xcb_has_error(xcb_connection_t *dpy) {
   char msg[256];
   switch (xerr) {
   case XCB_CONN_ERROR:
-    strcpy(msg, "socket, pipe or stream error.");
+    strcpy(msg, "socket, pipe or stream error");
     break;
   case XCB_CONN_CLOSED_EXT_NOTSUPPORTED:
-    strcpy(msg, "unsupported extension.");
+    strcpy(msg, "unsupported extension");
     break;
   case XCB_CONN_CLOSED_MEM_INSUFFICIENT:
-    strcpy(msg, "not enough memory.");
+    strcpy(msg, "not enough memory");
     break;
   case XCB_CONN_CLOSED_REQ_LEN_EXCEED:
-    strcpy(msg, "request length exceeded.");
+    strcpy(msg, "request length exceeded");
     break;
   case XCB_CONN_CLOSED_PARSE_ERR:
-    strcpy(msg, "can't parse display string.");
+    strcpy(msg, "can't parse display string");
     break;
   case XCB_CONN_CLOSED_INVALID_SCREEN:
-    strcpy(msg, "invalid screen.");
+    strcpy(msg, "invalid screen");
     break;
   case XCB_CONN_CLOSED_FDPASSING_FAILED:
-    strcpy(msg, "failed to pass FD.");
+    strcpy(msg, "failed to pass FD");
     break;
   default:
-    strcpy(msg, "unknown error.");
+    strcpy(msg, "unknown error");
     break;
   }
 
