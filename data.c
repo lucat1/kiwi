@@ -19,7 +19,6 @@ client_t *new_client(xcb_window_t w) {
   c->window = w;
   c->mapped = false;
   c->split_ratio = SPLIT_RATIO;
-  c->split_direction = SPLIT_DIRECTION;
   c->visibility = HIDDEN;
   c->motion = MOTION_NONE;
 

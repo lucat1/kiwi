@@ -15,7 +15,6 @@ typedef struct keybind keybind_t;
 typedef struct rel_pointer rel_pointer_t;
 typedef struct handler_func handler_func_t;
 
-enum split_direction { SPLIT_VERTICAL, SPLIT_HORIZONTAL };
 enum visibility { SHOWN, HIDDEN };
 enum motion_type { MOTION_NONE, MOTION_DRAGGING, MOTION_RESIZING };
 enum focus_type { FOCUSED, FOCUSED_ANOTHER_MONITOR, UNFOCUSED };
@@ -30,7 +29,6 @@ struct client {
   xcb_window_t window;
   float split_ratio;
   bool mapped;
-  enum split_direction split_direction;
   enum motion_type motion;
   enum visibility visibility;
 
