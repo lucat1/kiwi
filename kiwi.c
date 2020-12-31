@@ -109,9 +109,9 @@ void focus_client(client_t *c) {
                       XCB_CURRENT_TIME);
   xcb_flush(dpy);
 
-#if DEBUG
+#ifdef DEBUG
   print_monitors();
-#endif
+#endif // DEBUG
 }
 
 void move_client(client_t *c, int16_t x, int16_t y) {
@@ -163,28 +163,30 @@ void move_resize_client(client_t *c, int16_t x, int16_t y, uint16_t w,
 
 // fits a client to its new monitor (only needed for floating mode)
 void fit_client(client_t *c, monitor_t *mon) {
-#if DEBUG
+#ifdef DEBUG
   msg("%p\tfitting client %d (%d+%d+%dx%d) to monior %s (%d+%d+%dx%d)", c,
       c->window, c->x, c->y, c->w, c->h, mon->name, mon->x, mon->y, mon->w,
       mon->h);
-#endif
+#endif // DEBUG
 
   int bw = BORDER_WIDTH * 2;
   if (c->floating_w + bw > mon->w)
     move_resize_client(c, 0, c->floating_y, mon->w - bw, c->floating_h);
   else if (c->floating_w + c->floating_x + bw > mon->w)
     move_client(c, mon->w - c->floating_w - bw, c->floating_y);
-#if DEBUG && VERBOSE
+#ifdef DEBUG
+#ifdef VERBOSE
   else
     msg("%p\tno x-movement to do", c);
-#endif
+#endif // VERBOSE
+#endif // DEBUG
 
   if (c->floating_h + bw > mon->h)
     move_resize_client(c, c->actual_x, 0, c->actual_x, mon->h - bw);
   else if (c->floating_h + c->floating_y + bw > mon->h)
     move_client(c, c->actual_x, mon->h - c->floating_h - bw);
-#if DEBUG
-#if VERBOSE
+#ifdef DEBUG
+#ifdef VERBOSE
   else
     msg("%p\tno y-movement to do", c);
 #endif // VERBOSE
