@@ -23,7 +23,7 @@
 
 // amount of default desktops to create when the wm starts up
 // NOTE: must be >= 1 (default: 5)
-#define DEFAULT_DESKTOPS 2
+#define DEFAULT_DESKTOPS 3
 
 // follow sent windows to their new desktops
 #define FOLLOW_SEND 0
@@ -33,10 +33,6 @@
 
 // split ratio - how to divide the screen in tiling mode
 #define SPLIT_RATIO .6f
-// default split direction for new windows. could be as follows
-// - SPLIT_VERTICAL
-// - SPLIT_HORIZONTAL
-#define SPLIT_DIRECTION SPLIT_VERTICAL
 
 // the border around each window. can be set to 0 to remove
 #define BORDER_WIDTH 1
@@ -87,6 +83,7 @@ static const keybind_t keys[] = {
     WS(XK_3, 2),
     WS(XK_4, 3),
     WS(XK_5, 4),
+    WS(XK_6, 5),
 
     {MODKEY | SHIFT, XK_q, closewm, noarg},
 };
