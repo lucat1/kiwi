@@ -136,15 +136,24 @@ static int mapped_clients_size(list_t *l) {
   return size;
 }
 
-#define MAX_LEN 4096 // should be plenty of space
 // prints a debug message to the console and updates the WM_NAME property of the
 // root window to provide info about the window manager to other tools
 //
 // Example:
-// [("dp1",[(i+1,n),...]),("dp2",[(i+1,n),...]),...]
+// [("dp1",[(i+1,0|1,n),...]),("dp2",[(i+1,0|1,n),...]),...]
+//
+// Format:
+// [...list of monitors...]
+// - each monitor:
+//   (name, ...list of desktops...)
+//   - each desktop:
+//   (desktop index(+1), focused, number of clients)
 void wm_info() {
+#define MAX_LEN 4096 // should be plenty of space
+#define APPEND(...) len += sprintf(str + len, __VA_ARGS__)
   char str[MAX_LEN];
   int len = sprintf(str, "[");
+
 #ifdef DEBUG
   char debug_str[9];
   printf("--------------------------------------------------------\n");
@@ -152,9 +161,9 @@ void wm_info() {
   for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
     monitor_t *mon = miter->value;
     if (miter != monitors) // not first one
-      len += sprintf(str + len, ",");
+      APPEND(",");
 
-    len += sprintf(str + len, "(\"%s\",[", mon->name);
+    APPEND("(\"%s\",[", mon->name);
 #ifdef DEBUG
     printf("%p\tmonitor (%d) -- %s (%d+%d+%dx%d)\n", (void *)mon, mon->monitor,
            mon->name, mon->x, mon->y, mon->w, mon->h);
@@ -162,10 +171,10 @@ void wm_info() {
     for (list_t *diter = mon->desktops; diter != NULL; diter = diter->next) {
       desktop_t *desk = diter->value;
       if (diter != mon->desktops) // not first one
-        len += sprintf(str + len, ",");
+        APPEND(",");
 
-      len += sprintf(str + len, "(%d,%d)", desk->i + 1,
-                     mapped_clients_size(desk->clients));
+      APPEND("(%d,%d,%d)", desk->i + 1, mon->focused == desk,
+             mapped_clients_size(desk->clients));
 #ifdef DEBUG
       if (mon->focused == desk)
         sprintf(debug_str, "focused");
@@ -190,7 +199,7 @@ void wm_info() {
 #endif // DEBUG
       }
     }
-    len += sprintf(str + len, "])");
+    APPEND("])");
   }
 #if DEBUG
   printf("--------------------------------------------------------\n");
@@ -201,6 +210,7 @@ void wm_info() {
   xcb_flush(dpy);
 }
 #undef MAX_LEN
+#undef APPEND
 
 // taken from xwm
 xcb_keysym_t xcb_get_keysym(xcb_connection_t *dpy, xcb_keycode_t keycode) {
