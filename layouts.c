@@ -50,7 +50,6 @@ static void floating_reposition(desktop_t *desk) {
 static void floating_motion(rel_pointer_t p, client_t *c, monitor_t *mon) {
   UNUSED(mon);
   int bw = BORDER_WIDTH * 2;
-  // TODO: take border into account
   if (c->motion == MOTION_DRAGGING) {
     int16_t x = MIN(mon->w - c->floating_w - bw, MAX(c->floating_x + p.x, 0));
     int16_t y = MIN(mon->h - c->floating_h - bw, MAX(c->floating_y + p.y, 0));
