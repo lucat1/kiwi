@@ -80,6 +80,10 @@ void set_layout(FN_ARG arg) {
   focdesk->layout.reposition(focdesk);
 }
 
+void move(FN_ARG arg) {
+  focdesk->layout.move(arg.d, focdesk->focused, focdesk);
+}
+
 void focus_client(client_t *c) {
   if (c == NULL || (c->window == 0 && c->window == scr->root))
     return;
@@ -165,21 +169,20 @@ void fit_client(client_t *c, monitor_t *mon) {
       mon->h);
 #endif
 
-  if (c->floating_w + (BORDER_WIDTH * 2) > mon->w)
-    move_resize_client(c, 0, c->floating_y, mon->w - (BORDER_WIDTH * 2),
-                       c->floating_h);
-  else if (c->floating_w + c->floating_x + (BORDER_WIDTH * 2) > mon->w)
-    move_client(c, mon->w - c->floating_w - (BORDER_WIDTH * 2), c->floating_y);
+  int bw = BORDER_WIDTH * 2;
+  if (c->floating_w + bw > mon->w)
+    move_resize_client(c, 0, c->floating_y, mon->w - bw, c->floating_h);
+  else if (c->floating_w + c->floating_x + bw > mon->w)
+    move_client(c, mon->w - c->floating_w - bw, c->floating_y);
 #if DEBUG && VERBOSE
   else
     msg("%p\tno x-movement to do", c);
 #endif
 
-  if (c->floating_h + (BORDER_WIDTH * 2) > mon->h)
-    move_resize_client(c, c->actual_x, 0, c->actual_x,
-                       mon->h - (BORDER_WIDTH * 2));
-  else if (c->floating_h + c->floating_y + (BORDER_WIDTH * 2) > mon->h)
-    move_client(c, c->actual_x, mon->h - c->floating_h - (BORDER_WIDTH * 2));
+  if (c->floating_h + bw > mon->h)
+    move_resize_client(c, c->actual_x, 0, c->actual_x, mon->h - bw);
+  else if (c->floating_h + c->floating_y + bw > mon->h)
+    move_client(c, c->actual_x, mon->h - c->floating_h - bw);
 #if DEBUG
 #if VERBOSE
   else
@@ -262,8 +265,6 @@ void send_client(client_t *c, int i) {
 #else
     return;
 #endif
-  monitor_t *mon = get_monitor_for_desktop(desk);
-
   // remove it from the old workspace and refocus
   list_remove(&focdesk->clients, c);
   stack_remove(&focdesk->focus_stack, c);
@@ -276,10 +277,6 @@ void send_client(client_t *c, int i) {
   list_append(&desk->clients, c);
   stack_push(&desk->focus_stack, c);
   desk->focused = c;
-
-  // fit the client to its new monitor
-  if (desk->layout.type == LAYOUT_FLOATING)
-    fit_client(c, mon);
 
   // show the window if it's already on a visible desktop in another monitor
   for (list_t *miter = monitors; miter != NULL; miter = miter->next) {

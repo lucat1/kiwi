@@ -24,6 +24,7 @@ void send_rel(FN_ARG arg);
 void move_to(FN_ARG arg);
 void move_rel(FN_ARG arg);
 void set_layout(FN_ARG arg);
+void move(FN_ARG arg);
 
 /* window behavior */
 void focus_client(client_t *c);
@@ -34,6 +35,7 @@ void move_resize_client(client_t *c, int16_t x, int16_t y, uint16_t width,
 void save_client(client_t *c, enum layout_type t);
 void hide_client(client_t *c);
 void show_client(client_t *c);
+void fit_client(client_t *c, monitor_t *mon);
 void focus_desktop(desktop_t *desk);
 void send_client(client_t *c, int i);
 void border_color(client_t *c, bool focus);

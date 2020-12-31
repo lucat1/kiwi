@@ -9,24 +9,35 @@
 #define MIN(a, b) (a > b ? b : a)
 
 static void floating_reposition(desktop_t *desk);
-static void floating_motion(rel_pointer_t *p, client_t *c, monitor_t *mon);
+static void floating_motion(rel_pointer_t p, client_t *c, monitor_t *mon);
+static void floating_move(enum direction d, client_t *c, desktop_t *desk);
 static void tiling_reposition(desktop_t *desk);
-static void tiling_motion(rel_pointer_t *p, client_t *c, monitor_t *mon);
+static void tiling_motion(rel_pointer_t p, client_t *c, monitor_t *mon);
+static void tiling_move(enum direction d, client_t *c, desktop_t *desk);
 
-const layout_t floating_layout = {.type = LAYOUT_FLOATING,
-                                  .reposition = floating_reposition,
-                                  .motion = floating_motion};
-const layout_t tiling_layout = {.type = LAYOUT_TILING,
-                                .reposition = tiling_reposition,
-                                .motion = tiling_motion};
+const layout_t floating_layout = {
+    .type = LAYOUT_FLOATING,
+    .reposition = floating_reposition,
+    .motion = floating_motion,
+    .move = floating_move,
+};
+const layout_t tiling_layout = {
+    .type = LAYOUT_TILING,
+    .reposition = tiling_reposition,
+    .motion = tiling_motion,
+    .move = tiling_move,
+};
 
 // just shows hidden windows as they are moved manually by the user
 static void floating_reposition(desktop_t *desk) {
+  monitor_t *mon = get_monitor_for_desktop(desk);
   for (list_t *iter = desk->clients; iter != NULL; iter = iter->next) {
     client_t *c = iter->value;
     if (!c->mapped)
       continue;
 
+    // fit the client to its new monitor, if needed
+    fit_client(c, mon);
     // restore its previous position
     move_resize_client(c, c->floating_x, c->floating_y, c->floating_w,
                        c->floating_h);
@@ -36,21 +47,44 @@ static void floating_reposition(desktop_t *desk) {
   }
 }
 
-static void floating_motion(rel_pointer_t *p, client_t *c, monitor_t *mon) {
+static void floating_motion(rel_pointer_t p, client_t *c, monitor_t *mon) {
   UNUSED(mon);
+  int bw = BORDER_WIDTH * 2;
   // TODO: take border into account
   if (c->motion == MOTION_DRAGGING) {
-    // TODO: prevent window from exiting the screen (bottom left)
-    int16_t x = MIN(mon->w - c->floating_w, MAX(c->floating_x + p->x, 0));
-    int16_t y = MIN(mon->h - c->floating_h, MAX(c->floating_y + p->y, 0));
+    int16_t x = MIN(mon->w - c->floating_w - bw, MAX(c->floating_x + p.x, 0));
+    int16_t y = MIN(mon->h - c->floating_h - bw, MAX(c->floating_y + p.y, 0));
     move_client(c, x, y);
   } else if (c->motion == MOTION_RESIZING) {
     int16_t w =
-        MIN(mon->w - c->floating_x, MAX(c->floating_w + p->x, MIN_WIDTH));
+        MIN(mon->w - c->floating_x - bw, MAX(c->floating_w + p.x, MIN_WIDTH));
     int16_t h =
-        MIN(mon->h - c->floating_y, MAX(c->floating_h + p->y, MIN_HEIGHT));
+        MIN(mon->h - c->floating_y - bw, MAX(c->floating_h + p.y, MIN_HEIGHT));
     resize_client(c, w, h);
   }
+}
+
+static void floating_move(enum direction d, client_t *c, desktop_t *desk) {
+  monitor_t *mon = get_monitor_for_desktop(desk);
+  rel_pointer_t p = {0, 0};
+  switch (d) {
+  case DIRECTION_LEFT:
+    p.x = -MOVE_STEP;
+    break;
+  case DIRECTION_RIGHT:
+    p.x = MOVE_STEP;
+    break;
+  case DIRECTION_BOTTOM:
+    p.y = MOVE_STEP;
+    break;
+  case DIRECTION_TOP:
+    p.y = -MOVE_STEP;
+    break;
+  }
+  c->motion = MOTION_DRAGGING;
+  floating_motion(p, c, mon);
+  save_client(c, LAYOUT_FLOATING);
+  c->motion = MOTION_NONE;
 }
 
 // checks whether there is any following client to be drawn and returns true if
@@ -119,8 +153,14 @@ static void tiling_reposition(desktop_t *desk) {
   }
 }
 
-static void tiling_motion(rel_pointer_t *p, client_t *c, monitor_t *mon) {
+static void tiling_motion(rel_pointer_t p, client_t *c, monitor_t *mon) {
   UNUSED(p);
   UNUSED(c);
   UNUSED(mon);
+}
+
+static void tiling_move(enum direction d, client_t *c, desktop_t *desk) {
+  UNUSED(d);
+  UNUSED(c);
+  UNUSED(desk);
 }

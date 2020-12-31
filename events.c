@@ -120,12 +120,12 @@ void handle_motion_notify(xcb_generic_event_t *ev) {
   UNUSED(ev);
   xcb_query_pointer_cookie_t coord = xcb_query_pointer(dpy, scr->root);
   xcb_query_pointer_reply_t *pointer = xcb_query_pointer_reply(dpy, coord, 0);
-  rel_pointer_t *p = malloc(sizeof(rel_pointer_t));
-  p->x = pointer->root_x - start_x;
-  p->y = pointer->root_y - start_y;
+  rel_pointer_t p = {
+      .x = pointer->root_x - start_x,
+      .y = pointer->root_y - start_y,
+  };
   free(pointer);
   focdesk->layout.motion(p, focdesk->focused, focmon);
-  free(p);
 }
 
 void handle_configure_notify(xcb_generic_event_t *ev) {

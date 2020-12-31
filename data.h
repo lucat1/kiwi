@@ -18,6 +18,12 @@ typedef struct handler_func handler_func_t;
 enum split_direction { SPLIT_VERTICAL, SPLIT_HORIZONTAL };
 enum visibility { SHOWN, HIDDEN };
 enum motion_type { MOTION_NONE, MOTION_DRAGGING, MOTION_RESIZING };
+enum direction {
+  DIRECTION_LEFT,
+  DIRECTION_RIGHT,
+  DIRECTION_BOTTOM,
+  DIRECTION_TOP
+};
 
 struct client {
   xcb_window_t window;
@@ -43,12 +49,8 @@ struct layout {
   enum layout_type type;
 
   void (*reposition)(desktop_t *d);
-  void (*motion)(rel_pointer_t *p, client_t *c, monitor_t *mon);
-
-  void (*move_left)(desktop_t *d);
-  void (*move_right)(desktop_t *d);
-  void (*move_bottom)(desktop_t *d);
-  void (*move_top)(desktop_t *d);
+  void (*motion)(rel_pointer_t p, client_t *c, monitor_t *mon);
+  void (*move)(enum direction d, client_t *c, desktop_t *desk);
 };
 
 struct desktop {
@@ -78,6 +80,7 @@ struct arg {
   const int i;
   const char **v;
   const enum layout_type l;
+  const enum direction d;
 };
 
 #define FN_ARG const struct arg

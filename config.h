@@ -49,6 +49,9 @@
 #define MIN_WIDTH 60
 #define MIN_HEIGHT 40
 
+// amount of pixels to move the window by each step (with binds)
+#define MOVE_STEP 25
+
 // program commands, used later in bindings
 static const char *termcmd[] = {"alacritty", NULL};
 static const char *menucmd[] = {"dmenu_run", NULL};
@@ -65,8 +68,13 @@ static const keybind_t keys[] = {
     {MODKEY, XK_space, spawn, {.v = menucmd}},
     {MODKEY, XK_w, killclient, noarg},
 
-    {MODKEY, XK_l, move_rel, {.i = 1}},
-    {MODKEY, XK_h, move_rel, {.i = -1}},
+    {MODKEY, XK_h, move, {.d = DIRECTION_LEFT}},
+    {MODKEY, XK_j, move, {.d = DIRECTION_BOTTOM}},
+    {MODKEY, XK_k, move, {.d = DIRECTION_TOP}},
+    {MODKEY, XK_l, move, {.d = DIRECTION_RIGHT}},
+
+    {MODKEY | SHIFT, XK_k, move_rel, {.i = 1}},
+    {MODKEY | SHIFT, XK_j, move_rel, {.i = -1}},
     {MODKEY | SHIFT, XK_l, send_rel, {.i = 1}},
     {MODKEY | SHIFT, XK_h, send_rel, {.i = -1}},
 
