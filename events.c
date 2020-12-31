@@ -58,21 +58,26 @@ void handle_map_request(xcb_generic_event_t *ev) {
 void handle_destroy_notify(xcb_generic_event_t *ev) {
   xcb_destroy_notify_event_t *e = (xcb_destroy_notify_event_t *)ev;
   client_t *c = get_client(e->window);
+  if (c == NULL) // a window not handled by the window manager
+    return;
 
   // discard any window information
   c->mapped = false;
   xcb_ungrab_button(dpy, XCB_BUTTON_INDEX_1, c->window, XCB_NONE);
   xcb_kill_client(dpy, c->window);
 
-  list_remove(&focdesk->clients, c);
-  stack_remove(&focdesk->focus_stack, c);
-  if (focdesk->focused == c)
-    focdesk->focused = NULL;
+  // the focdesk may be null as the monitor the window was on was unplugged
+  if (focdesk != NULL) {
+    list_remove(&focdesk->clients, c);
+    stack_remove(&focdesk->focus_stack, c);
+    if (focdesk->focused == c)
+      focdesk->focused = NULL;
 
-  // focus the new best client
-  if (focdesk->focus_stack != NULL)
-    focus_client((client_t *)focdesk->focus_stack->value);
-  focdesk->layout.reposition(focdesk);
+    // focus the new best client
+    if (focdesk->focus_stack != NULL)
+      focus_client((client_t *)focdesk->focus_stack->value);
+    focdesk->layout.reposition(focdesk);
+  }
 }
 
 int16_t start_x, start_y;

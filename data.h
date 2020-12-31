@@ -64,7 +64,7 @@ struct desktop {
 
 struct monitor {
   xcb_randr_output_t monitor;
-  char *name;
+  const char *name;
   int16_t x, y;
   uint16_t w, h;
   desktop_t *focused;
@@ -102,7 +102,7 @@ client_t *get_client(xcb_window_t w);
 desktop_t *new_desktop(layout_t l);
 desktop_t *get_desktop(int i);
 void free_desktop(desktop_t *list);
-monitor_t *new_monitor(xcb_randr_output_t monitor, char *name, int16_t x,
+monitor_t *new_monitor(xcb_randr_output_t monitor, const char *name, int16_t x,
                        int16_t y, uint16_t w, uint16_t h);
 monitor_t *get_monitor_for_desktop(desktop_t *desk);
 monitor_t *get_monitor_for_client(client_t *c);

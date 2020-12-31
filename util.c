@@ -27,6 +27,9 @@ void _print(const char *t, const char *fn, const char *fmt, ...) {
   printf("\n");
 
   va_end(args);
+#ifdef DEBUG
+  fflush(stdout);
+#endif // DEBUG
 }
 
 // borrowed and adjusted from bspwm.
@@ -181,12 +184,10 @@ void wm_info() {
       else
         sprintf(debug_str, "inactive");
       printf("%p\t\tdesktop (%d) -- %s\n", (void *)desk, desk->i, debug_str);
-#endif // DEBUG
 
       for (list_t *citer = desk->clients; citer != NULL; citer = citer->next) {
         client_t *c = citer->value;
 
-#ifdef DEBUG
         if (c == desk->focused)
           sprintf(debug_str, "focused");
         else if (c->visibility == HIDDEN)
@@ -196,8 +197,8 @@ void wm_info() {
 
         printf("%p\t\t\tclient (%d) -- [%d] %s\n", (void *)c, c->window,
                c->mapped, debug_str);
-#endif // DEBUG
       }
+#endif // DEBUG
     }
     APPEND("])");
   }

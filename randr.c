@@ -31,6 +31,17 @@ void setup_randr() {
                              XCB_RANDR_NOTIFY_MASK_OUTPUT_PROPERTY);
 }
 
+static void add_monitor(xcb_randr_output_t out, const char *name, int16_t x,
+                        int16_t y, uint16_t w, int16_t h) {
+  monitor_t *monitor = new_monitor(out, name, x, y, w, h);
+  list_append(&monitors, monitor);
+  setup_desktops(monitor);
+
+  // use this monitor as default when none is set
+  if (focmon == NULL)
+    focmon = monitor;
+}
+
 // use a dummy monitor for when we can't identify monitors with randr
 static void dummy_monitor() {
   monitor_t *mon;
@@ -38,12 +49,8 @@ static void dummy_monitor() {
   if ((mon = get_monitor_by_id(0)) != NULL) {
     mon->w = scr->width_in_pixels;
     mon->h = scr->height_in_pixels;
-    return;
-  }
-  mon = new_monitor(0, "dummy", 0, 0, scr->width_in_pixels,
-                    scr->height_in_pixels);
-  list_append(&monitors, mon);
-  setup_desktops(mon);
+  } else
+    add_monitor(0, "dummy", 0, 0, scr->width_in_pixels, scr->height_in_pixels);
 }
 
 void get_randr() {
@@ -110,10 +117,8 @@ static void get_outputs(xcb_randr_output_t *outputs, int len,
 
       mon = get_monitor_by_id(outputs[i]);
       if (mon == NULL) {
-        monitor_t *monitor = new_monitor(outputs[i], name, crtc->x, crtc->y,
-                                         crtc->width, crtc->height);
-        list_append(&monitors, monitor);
-        setup_desktops(monitor);
+        add_monitor(outputs[i], name, crtc->x, crtc->y, crtc->width,
+                    crtc->height);
       } else {
         // update position if already available
         mon->x = crtc->x;
@@ -132,33 +137,36 @@ static void get_outputs(xcb_randr_output_t *outputs, int len,
       // Check if the monitor was used before
       // becoming disabled.
       monitor_t *mon = get_monitor_by_id(outputs[i]);
-      if (mon != NULL) {
-        // remove the monitor from the currently active ones
-        list_remove(&monitors, mon);
+      if (mon == NULL) {
+        warn("randr: removed unregistered monitor %d", outputs[i]);
+        continue;
+      }
+      // remove the monitor from the currently active ones
+      list_remove(&monitors, mon);
 
-        // die if no more monitors are available
-        monitor_t *replacement;
-        if (monitors == NULL || (replacement = monitors->value) == NULL)
-          die("no more monitors remaining, could not display content");
+      monitor_t *replacement = NULL;
+      // wheter we should kill all windows since we don't have a replacement
+      // monitor
+      bool kill = monitors == NULL || (replacement = monitors->value) == NULL;
 
-        // move all clients to the new replacement desktop
-        for (list_t *diter = mon->desktops; diter != NULL;
-             diter = diter->next) {
-          desktop_t *desk = diter->value;
-          for (list_t *citer = desk->clients; citer != NULL;
-               citer = citer->next) {
-            list_append(&replacement->focused->clients, citer->value);
-          }
+      // move all clients to the new replacement desktop
+      for (list_t *diter = mon->desktops; diter != NULL; diter = diter->next) {
+        desktop_t *desk = diter->value;
+        for (list_t *citer = desk->clients; citer != NULL;
+             citer = citer->next) {
+          client_t *c = citer->value;
+          if (kill)
+            xcb_kill_client(dpy, c->window);
+          else
+            list_append(&replacement->focused->clients, c);
         }
+      }
 
-        list_free(mon->desktops, (void (*)(void *))free_desktop);
-        free(mon);
-      } else
-        warn("removed unregistered monitor: %d", outputs[i]);
+      list_free(mon->desktops, (void (*)(void *))free_desktop);
+      free(mon);
     }
 
-    if (output != NULL)
-      free(output);
+    free(output);
     free(name);
   }
 }

@@ -78,7 +78,7 @@ void free_desktop(desktop_t *list) {
   desktop_count--;
 }
 
-monitor_t *new_monitor(xcb_randr_output_t monitor, char *name, int16_t x,
+monitor_t *new_monitor(xcb_randr_output_t monitor, const char *name, int16_t x,
                        int16_t y, uint16_t w, uint16_t h) {
   monitor_t *mon = malloc(sizeof(monitor_t));
   mon->monitor = monitor;

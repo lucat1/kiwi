@@ -195,7 +195,6 @@ void fit_client(client_t *c, monitor_t *mon) {
 // saves the actual coordinates into the mode-specific ones
 void save_client(client_t *c, enum layout_type t) {
   if (t == LAYOUT_FLOATING) {
-    msg("saving to floating values");
     c->floating_x = c->actual_x;
     c->floating_y = c->actual_y;
     c->floating_w = c->actual_w;
@@ -401,9 +400,6 @@ static void setup() {
 
   if (list_size(monitors) < 1)
     die("randr: no monitors found");
-
-  // focus the first monitor
-  focmon = monitors->value;
 }
 
 void setup_desktops(monitor_t *mon) {
