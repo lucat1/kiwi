@@ -125,39 +125,82 @@ char *xcb_event_str(int type) {
     return "undefined event";
   }
 }
+#endif // DEBUG
 
-void print_monitors() {
+static int mapped_clients_size(list_t *l) {
+  int size = 0;
+  for (; l != NULL; l = l->next) {
+    if (((client_t *)l->value)->mapped)
+      size++;
+  }
+  return size;
+}
+
+#define MAX_LEN 4096 // should be plenty of space
+// prints a debug message to the console and updates the WM_NAME property of the
+// root window to provide info about the window manager to other tools
+//
+// Example:
+// [("dp1",[(i+1,n),...]),("dp2",[(i+1,n),...]),...]
+void wm_info() {
+  char str[MAX_LEN];
+  int len = sprintf(str, "[");
+#ifdef DEBUG
+  char debug_str[9];
   printf("--------------------------------------------------------\n");
-  char str[9];
+#endif // DEBUG
   for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
     monitor_t *mon = miter->value;
+    if (miter != monitors) // not first one
+      len += sprintf(str + len, ",");
+
+    len += sprintf(str + len, "(\"%s\",[", mon->name);
+#ifdef DEBUG
     printf("%p\tmonitor (%d) -- %s (%d+%d+%dx%d)\n", (void *)mon, mon->monitor,
            mon->name, mon->x, mon->y, mon->w, mon->h);
+#endif // DEBUG
     for (list_t *diter = mon->desktops; diter != NULL; diter = diter->next) {
       desktop_t *desk = diter->value;
+      if (diter != mon->desktops) // not first one
+        len += sprintf(str + len, ",");
+
+      len += sprintf(str + len, "(%d,%d)", desk->i + 1,
+                     mapped_clients_size(desk->clients));
+#ifdef DEBUG
       if (mon->focused == desk)
-        sprintf(str, "focused");
+        sprintf(debug_str, "focused");
       else
-        sprintf(str, "inactive");
-      printf("%p\t\tdesktop (%d) -- %s\n", (void *)desk, desk->i, str);
+        sprintf(debug_str, "inactive");
+      printf("%p\t\tdesktop (%d) -- %s\n", (void *)desk, desk->i, debug_str);
+#endif // DEBUG
 
       for (list_t *citer = desk->clients; citer != NULL; citer = citer->next) {
         client_t *c = citer->value;
+
+#ifdef DEBUG
         if (c == desk->focused)
-          sprintf(str, "focused");
+          sprintf(debug_str, "focused");
         else if (c->visibility == HIDDEN)
-          sprintf(str, "hidden");
+          sprintf(debug_str, "hidden");
         else
-          sprintf(str, "shown");
+          sprintf(debug_str, "shown");
 
         printf("%p\t\t\tclient (%d) -- [%d] %s\n", (void *)c, c->window,
-               c->mapped, str);
+               c->mapped, debug_str);
+#endif // DEBUG
       }
     }
+    len += sprintf(str + len, "])");
   }
+#if DEBUG
   printf("--------------------------------------------------------\n");
-}
 #endif // DEBUG
+  len += sprintf(str + len, "]");
+  xcb_change_property(dpy, XCB_PROP_MODE_REPLACE, scr->root, XCB_ATOM_WM_NAME,
+                      XCB_ATOM_STRING, 8, len, str);
+  xcb_flush(dpy);
+}
+#undef MAX_LEN
 
 // taken from xwm
 xcb_keysym_t xcb_get_keysym(xcb_connection_t *dpy, xcb_keycode_t keycode) {

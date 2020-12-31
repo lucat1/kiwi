@@ -83,10 +83,6 @@ void handle_button_press(xcb_generic_event_t *ev) {
   if (mon != NULL)
     focus_monitor(mon);
 
-#ifdef DEBUG
-  print_monitors();
-#endif // DEBUG
-
   if (c == NULL || c->window == 0 || c->window == scr->root)
     return;
 

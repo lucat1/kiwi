@@ -107,11 +107,7 @@ void focus_client(client_t *c) {
   xcb_configure_window(dpy, c->window, XCB_CONFIG_WINDOW_STACK_MODE, v);
   xcb_set_input_focus(dpy, XCB_INPUT_FOCUS_POINTER_ROOT, c->window,
                       XCB_CURRENT_TIME);
-  xcb_flush(dpy);
-
-#ifdef DEBUG
-  print_monitors();
-#endif // DEBUG
+  wm_info();
 }
 
 void move_client(client_t *c, int16_t x, int16_t y) {
@@ -321,9 +317,7 @@ void focus_desktop(desktop_t *desk) {
     show_client(citer->value);
   }
   focus_client(focdesk->focused);
-#ifdef DEBUG
-  print_monitors();
-#endif // DEBUG
+  wm_info();
 }
 
 void focus_monitor(monitor_t *mon) {
@@ -342,6 +336,7 @@ void focus_monitor(monitor_t *mon) {
   }
 
   focmon = mon;
+  wm_info();
 }
 
 void border_color(client_t *c, enum focus_type f) {

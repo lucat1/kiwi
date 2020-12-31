@@ -66,9 +66,7 @@ void get_randr() {
     dummy_monitor();
 
   free(r);
-#ifdef DEBUG
-  print_monitors();
-#endif // DEBUG
+  wm_info();
 }
 
 static void get_outputs(xcb_randr_output_t *outputs, int len,
