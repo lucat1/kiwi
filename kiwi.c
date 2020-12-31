@@ -81,7 +81,8 @@ void set_layout(FN_ARG arg) {
 }
 
 void move(FN_ARG arg) {
-  focdesk->layout.move(arg.d, focdesk->focused, focdesk);
+  if (focdesk->focused != NULL)
+    focdesk->layout.move(arg.d, focdesk->focused, focdesk);
 }
 
 void focus_client(client_t *c) {
