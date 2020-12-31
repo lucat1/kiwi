@@ -319,9 +319,15 @@ void focus_desktop(desktop_t *desk) {
     show_client(citer->value);
   }
   focus_client(focdesk->focused);
+#ifdef DEBUG
+  print_monitors();
+#endif // DEBUG
 }
 
 void focus_monitor(monitor_t *mon) {
+  if (mon == focmon)
+    return;
+
   for (list_t *iter = monitors; iter != NULL; iter = iter->next) {
     monitor_t *m = iter->value;
     if (m->focused->focused == NULL)
@@ -332,6 +338,7 @@ void focus_monitor(monitor_t *mon) {
     else
       border_color(m->focused->focused, FOCUSED_ANOTHER_MONITOR);
   }
+
   focmon = mon;
 }
 

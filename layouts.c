@@ -160,7 +160,19 @@ static void tiling_motion(rel_pointer_t p, client_t *c, monitor_t *mon) {
 }
 
 static void tiling_move(enum direction d, client_t *c, desktop_t *desk) {
-  UNUSED(d);
-  UNUSED(c);
-  UNUSED(desk);
+  // if we're focusing the last element of the list updating its
+  // split ratio won't have effect.
+  // TODO: discuss this implementation
+  switch (d) {
+  case DIRECTION_LEFT:
+  case DIRECTION_BOTTOM:
+    c->split_ratio -= 0.05;
+    break;
+  case DIRECTION_RIGHT:
+  case DIRECTION_TOP:
+    c->split_ratio += 0.05;
+    break;
+  }
+
+  tiling_reposition(desk);
 }
