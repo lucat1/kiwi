@@ -36,11 +36,11 @@ static void floating_reposition(desktop_t *desk) {
     if (!c->mapped)
       continue;
 
-    // fit the client to its new monitor, if needed
-    fit_client(c, mon);
     // restore its previous position
     move_resize_client(c, c->floating_x, c->floating_y, c->floating_w,
                        c->floating_h);
+    // fit the client to its new monitor, if needed
+    fit_client(c, mon);
 
     if (c->visibility == HIDDEN)
       show_client(c);
