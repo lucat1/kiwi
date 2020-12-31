@@ -1,82 +1,46 @@
+/* See LICENSE file for copyright and license details. */
 #ifndef KIWI_H
 #define KIWI_H
 
-#include <X11/Xlib.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include "data.h"
+#include "list.h"
+#include <stdbool.h>
+#include <xcb/xcb_keysyms.h>
 
-#include "vector.h"
+extern list_t *monitors;  // list of monitors
+extern monitor_t *focmon; // the currently focused monitor
+#define focdesk ((desktop_t *)focmon->focused)
+/* extern list_t *desktops;      // list of desktops */
+/* extern desktop_t *focdesk;    // the currently focused desktop */
+extern xcb_connection_t *dpy; // the X display
+extern xcb_screen_t *scr;     // the X screen
 
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-#define MOUSEMASK (PointerMotionMask | ButtonPressMask | ButtonReleaseMask)
+/* user defined command actions */
+void killclient(FN_ARG arg);
+void spawn(FN_ARG arg);
+void closewm(FN_ARG arg);
+void send_to(FN_ARG arg);
+void send_rel(FN_ARG arg);
+void move_to(FN_ARG arg);
+void move_rel(FN_ARG arg);
+void set_layout(FN_ARG arg);
+void move(FN_ARG arg);
 
-#define MAXLEN 256
-#define AUTOSTART "kiwi/autostart"
-#define MINIMUM_DIM 100
+/* window behavior */
+void focus_client(client_t *c);
+void move_client(client_t *c, int16_t x, int16_t y);
+void resize_client(client_t *c, uint16_t width, uint16_t height);
+void move_resize_client(client_t *c, int16_t x, int16_t y, uint16_t width,
+                        uint16_t height);
+void save_client(client_t *c, enum layout_type t);
+void hide_client(client_t *c);
+void show_client(client_t *c);
+void fit_client(client_t *c, monitor_t *mon);
+void focus_desktop(desktop_t *desk);
+void focus_monitor(monitor_t *mon);
+void send_client(client_t *c, int i);
+void border_color(client_t *c, enum focus_type f);
+void border_width(client_t *c, int width);
+void setup_desktops(monitor_t *mon);
 
-#define die(...) _m("FAIL", __func__, __FILE__, __LINE__, __VA_ARGS__), exit(1);
-#define warn(...) _m("WARN", __func__, __FILE__, __LINE__, __VA_ARGS__)
-#define msg(...) _m("OK", __func__, __FILE__, __LINE__, __VA_ARGS__)
-
-static void _m(const char *t, const char *fn, const char *f, const int l,
-               const char *fmt, ...) {
-  va_list args;
-
-  va_start(args, fmt);
-
-  printf("[%s] (%s in %s:%d) ", t, fn, f, l);
-  vprintf(fmt, args);
-  printf("\n");
-
-  va_end(args);
-}
-
-typedef struct {
-  Window w;
-  size_t ws; // the workspace id
-  int x, y, width, height, border;
-  int visible;
-} client;
-
-typedef struct {
-  int i;       // the index of the workspace
-  client *foc; // the focused client(window)
-} workspace;
-
-typedef struct {
-  Display *d;        // display
-  int s;             // screen id
-  Window r;          // root window
-  int width, height; // screen width and height
-
-  size_t focus;                        // the focused workspace
-  cvector_vector_type(workspace *) ws; // vector of workspaces
-
-  cvector_vector_type(client *) cs; // vector of clients
-} state;
-
-typedef struct {
-  Mask mask;
-} config;
-
-#define KIWI_CLIENT_EVENT "KIWI_CLIENT_EVENT"
-enum kiwi_net { KiwiClientEvent, KiwiLast };
-
-enum kiwic_cmds {
-  KiwicClose,
-  KiwicKill,
-  KiwicWorkspaces,
-  KiwicFocusWorkspace,
-  KiwicSendToWorkspace,
-  KiwicLast,
-};
-
-enum atoms_wm {
-  WMDeleteWindow,
-  WMProtocols,
-  WMTakeFocus,
-  WMLast,
-};
-
-#endif // KIWI_H
+#endif

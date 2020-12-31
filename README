@@ -1,0 +1,14 @@
+Inspirations:
+  - berry
+  - bspwm (xcb trickery and functions, namely check_connection)
+  - sowm
+  - swm (xcb)
+  - xwm (started as a fork)
+  - windowchef (for xcb/randr)
+
+Dependencies:
+  - GNU make
+  - GCC
+  - libxcb-devel
+  - xcb-util-keysyms-devel
+  - libX11-devel (needed for configuration)

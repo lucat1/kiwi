@@ -1,18 +1,37 @@
-CFLAGS += -std=c99 -Wall -Wextra -pedantic -Wold-style-declaration
-CFLAGS += -Wno-unused-parameter -g
-LDFLAGS += -lX11 
+CC     ?= pcc
+CFLAGS += -std=c99 -Wall -Wextra -pedantic -Wold-style-declaration -Wno-missing-braces -O3
+
+LDFLAGS += -lxcb -lxcb-keysyms -lxcb-randr
 PREFIX ?= /usr
 BINDIR ?= $(PREFIX)/bin
-CC     ?= gcc
+BIN = kiwi
 
-all:
-	$(CC) $(CFLAGS) -o kiwi  kiwi.c  $(LDFLAGS)
-	$(CC) $(CFLAGS) -o kiwic kiwic.c $(LDFLAGS)
+SRC = $(wildcard *.c)
+OBJ := $(SRC:.c=.o)
 
-test: all
-	PATH=$$PATH:$$CWD DISPLAY=:1 ./kiwi
+kiwi: $(OBJ) 
+	@echo "LD\t$(BIN)"
+	@$(CC) $(LDFLAGS) -o $(BIN) $(OBJ) 
 
-install: all
+dev: CFLAGS += -DDEBUG
+dev: kiwi
+
+debug: CFLAGS += -DDEBUG -DVERBOSE -ggdb
+debug: clean kiwi
+
+profile: CFLAGS += -DDEBUG -pg
+profile: clean kiwi
+
+$(OBJ): config.h
+$(OBJ): %.o: %.c
+	@echo "CC\t$<"
+	@$(CC) $(CFLAGS) -c -o $@ $(@:%.o=%.c)
+
+.PHONY: clean install uninstall
+clean:
+	rm *.o kiwi
+
+install: kiwi
 	@echo installing to $(DESTDIR)$(BINDIR)
 	@mkdir -p $(DESTDIR)$(BINDIR)
 	@cp -f kiwi $(DESTDIR)$(BINDIR)

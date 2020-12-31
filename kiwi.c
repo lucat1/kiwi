@@ -1,626 +1,455 @@
-#include <stdarg.h>
-#include <stddef.h>
+#include "kiwi.h"
+#include "config.h"
+#include "data.h"
+#include "events.h"
+#include "layouts.h"
+#include "randr.h"
+#include "util.h"
+
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/wait.h>
 #include <unistd.h>
+#include <xcb/xcb.h>
+#include <xcb/xproto.h>
 
-#include <X11/Xlib.h>
-#include <X11/Xproto.h>
-#include <X11/Xutil.h>
-#include <X11/cursorfont.h>
+#define ROOT_EVENT_MASK                                                        \
+  (XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | \
+   XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_BUTTON_PRESS)
 
-#include "kiwi.h"
-#include "vector.h"
+list_t *monitors;
+monitor_t *focmon;
+xcb_connection_t *dpy = NULL;
+xcb_screen_t *scr = NULL;
 
-static void cleanup();
-static void setup();
-
-static workspace *ws_curr();
-static workspace *ws_add();
-static void ws_delete(size_t ws);
-static void ws_focus(size_t ws);
-static cvector_vector_type(client *) clients_from_ws(size_t ws);
-
-static client *client_from_window();
-static void client_add(client *c);
-static void client_show(client *c);
-static void client_hide(client *c);
-static void client_focus(client *c);
-static void client_move(client *c, int x, int y);
-static void client_resize(client *c, int w, int h);
-static void client_border(client *c, char *color);
-static void client_close(client *c);
-static void client_kill(client *c);
-static void client_delete(client *c);
-
-static void handle_map_request(XEvent *ev);
-static void handle_unmap_notify(XEvent *ev);
-static void handle_client_message(XEvent *ev);
-static void handle_button_press(XEvent *ev);
-static void handle_new_window(Window w, XWindowAttributes *wa);
-
-static void kiwic_close(long *e);
-static void kiwic_kill(long *e);
-static void kiwic_workspaces(long *e);
-static void kiwic_focus_workspace(long *e);
-static void kiwic_send_to_workspace(long *e);
-
-char cfgp[MAXLEN]; // path to config file
-state *wm;         // wm global state
-
-/* static int clients_len = 0; // the length of the clients array */
-/* static client **clients; // list of available clients (wrapper around
- * windows) */
-static config cfg = {Mod4Mask};
-static Atom wm_atom[WMLast], net_kiwi[KiwiLast];
-
-static Cursor move_cursor, normal_cursor;
-static int (*xerrorxlib)(Display *, XErrorEvent *);
-
-static void (*events[LASTEvent])(XEvent *e) = {
-    [MapRequest] = handle_map_request,
-    [UnmapNotify] = handle_unmap_notify,
-    [ClientMessage] = handle_client_message,
-    [ButtonPress] = handle_button_press,
-};
-
-static void (*kiwic_events[KiwicLast])(long *) = {
-    [KiwicClose] = kiwic_close,
-    [KiwicKill] = kiwic_kill,
-
-    [KiwicWorkspaces] = kiwic_workspaces,
-    [KiwicFocusWorkspace] = kiwic_focus_workspace,
-    [KiwicSendToWorkspace] = kiwic_send_to_workspace,
-};
-
-static int xerror(Display *d, XErrorEvent *ee) {
-  if (ee->error_code == BadWindow ||
-      (ee->request_code == X_SetInputFocus && ee->error_code == BadMatch) ||
-      (ee->request_code == X_PolyText8 && ee->error_code == BadDrawable) ||
-      (ee->request_code == X_PolyFillRectangle &&
-       ee->error_code == BadDrawable) ||
-      (ee->request_code == X_PolySegment && ee->error_code == BadDrawable) ||
-      (ee->request_code == X_ConfigureWindow && ee->error_code == BadMatch) ||
-      (ee->request_code == X_GrabButton && ee->error_code == BadAccess) ||
-      (ee->request_code == X_GrabKey && ee->error_code == BadAccess) ||
-      (ee->request_code == X_CopyArea && ee->error_code == BadDrawable))
-    return 0;
-
-  die("fatal error: request code=%d, error code=%d", ee->request_code,
-      ee->error_code);
-  return xerrorxlib(d, ee); /* may call exit */
+void killclient(FN_ARG arg) {
+  UNUSED(arg);
+  if (focdesk->focused != NULL)
+    xcb_kill_client(dpy, focdesk->focused->window);
 }
 
-static void cleanup() {
-  size_t i;
+void closewm(FN_ARG arg) {
+  UNUSED(arg);
+  if (dpy != NULL) {
+    xcb_disconnect(dpy);
+  }
+}
 
-  if (wm == NULL)
+void spawn(FN_ARG arg) {
+  if (fork() == 0) {
+    if (dpy != NULL) {
+      close(scr->root);
+    }
+    setsid();
+    if (fork() != 0) {
+      exit(0);
+    }
+    execvp((char *)arg.v[0], (char **)arg.v);
+    exit(0);
+  }
+  wait(NULL);
+}
+
+void send_to(FN_ARG arg) { send_client(focdesk->focused, arg.i); }
+void send_rel(FN_ARG arg) { send_client(focdesk->focused, focdesk->i + arg.i); }
+
+void move_to(FN_ARG arg) {
+  desktop_t *desk = get_desktop(arg.i);
+  if (desk != NULL)
+    focus_desktop(desk);
+}
+void move_rel(FN_ARG arg) {
+  FN_ARG a = {.i = focdesk->i + arg.i};
+  move_to(a);
+}
+
+void set_layout(FN_ARG arg) {
+  switch (arg.l) {
+  case LAYOUT_FLOATING:
+    focdesk->layout = floating_layout;
+    break;
+
+  case LAYOUT_TILING:
+    focdesk->layout = tiling_layout;
+    break;
+
+  default:
+    fail("invalid layout");
+  }
+  focdesk->layout.reposition(focdesk);
+}
+
+void move(FN_ARG arg) {
+  focdesk->layout.move(arg.d, focdesk->focused, focdesk);
+}
+
+void focus_client(client_t *c) {
+  if (c == NULL || (c->window == 0 && c->window == scr->root))
     return;
 
-  // free any workspace
-  if (wm->ws != NULL)
-    cvector_free(wm->ws);
+  // remove focus from the previous client
+  if (focdesk->focused != NULL)
+    border_color(focdesk->focused, UNFOCUSED);
 
-  if (wm->cs != NULL) {
-    for (i = 0; i < cvector_size(wm->cs); i++)
-      free(wm->cs[i]);
+  // focus the new client
+  focdesk->focused = c;
+  border_color(focdesk->focused, FOCUSED);
 
-    cvector_free(wm->cs);
-  }
+  // push the client to the focus list if we have an empty one or
+  // the client isn't already at the top of it
+  if ((focdesk->focus_stack != NULL && focdesk->focus_stack->value != c) ||
+      focdesk->focus_stack == NULL)
+    stack_push(&focdesk->focus_stack, c);
 
-  msg("Closing the display");
-  XCloseDisplay(wm->d);
-  free(wm);
+  // move the focused window above all others and set the input focus
+  static const uint32_t v[] = {XCB_STACK_MODE_ABOVE};
+  xcb_configure_window(dpy, c->window, XCB_CONFIG_WINDOW_STACK_MODE, v);
+  xcb_set_input_focus(dpy, XCB_INPUT_FOCUS_POINTER_ROOT, c->window,
+                      XCB_CURRENT_TIME);
+  xcb_flush(dpy);
+
+#if DEBUG
+  print_monitors();
+#endif
 }
 
-static int find_autostart() {
-  char *xdg_home = getenv("XDG_CONFIG_HOME");
-  if (xdg_home != NULL) {
-    snprintf(cfgp, MAXLEN, "%s/%s", xdg_home, AUTOSTART);
+void move_client(client_t *c, int16_t x, int16_t y) {
+  if (c == NULL)
+    return;
+
+  monitor_t *mon;
+  if ((mon = get_monitor_for_client(c)) == NULL)
+    fail("could not get monitor for client");
+
+  c->actual_x = x;
+  c->actual_y = y;
+  uint32_t values[2] = {mon->x + x, mon->y + y};
+  xcb_configure_window(dpy, c->window,
+                       XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
+}
+
+void resize_client(client_t *c, uint16_t w, uint16_t h) {
+  if (c == NULL)
+    return;
+
+  c->actual_w = w;
+  c->actual_h = h;
+  uint32_t values[2] = {w, h};
+  xcb_configure_window(dpy, c->window,
+                       XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
+                       values);
+}
+
+void move_resize_client(client_t *c, int16_t x, int16_t y, uint16_t w,
+                        uint16_t h) {
+  if (c == NULL)
+    return;
+
+  monitor_t *mon;
+  if ((mon = get_monitor_for_client(c)) == NULL)
+    fail("could not get monitor for client");
+
+  c->actual_x = x;
+  c->actual_y = y;
+  c->actual_w = w;
+  c->actual_h = h;
+  uint32_t values[4] = {mon->x + x, mon->y + y, w, h};
+  xcb_configure_window(dpy, c->window,
+                       XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y |
+                           XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
+                       values);
+}
+
+// fits a client to its new monitor (only needed for floating mode)
+void fit_client(client_t *c, monitor_t *mon) {
+#if DEBUG
+  msg("%p\tfitting client %d (%d+%d+%dx%d) to monior %s (%d+%d+%dx%d)", c,
+      c->window, c->x, c->y, c->w, c->h, mon->name, mon->x, mon->y, mon->w,
+      mon->h);
+#endif
+
+  int bw = BORDER_WIDTH * 2;
+  if (c->floating_w + bw > mon->w)
+    move_resize_client(c, 0, c->floating_y, mon->w - bw, c->floating_h);
+  else if (c->floating_w + c->floating_x + bw > mon->w)
+    move_client(c, mon->w - c->floating_w - bw, c->floating_y);
+#if DEBUG && VERBOSE
+  else
+    msg("%p\tno x-movement to do", c);
+#endif
+
+  if (c->floating_h + bw > mon->h)
+    move_resize_client(c, c->actual_x, 0, c->actual_x, mon->h - bw);
+  else if (c->floating_h + c->floating_y + bw > mon->h)
+    move_client(c, c->actual_x, mon->h - c->floating_h - bw);
+#if DEBUG
+#if VERBOSE
+  else
+    msg("%p\tno y-movement to do", c);
+#endif // VERBOSE
+#endif // DEBUG
+
+  save_client(c, LAYOUT_FLOATING);
+}
+
+// saves the actual coordinates into the mode-specific ones
+void save_client(client_t *c, enum layout_type t) {
+  if (t == LAYOUT_FLOATING) {
+    c->floating_x = c->actual_x;
+    c->floating_y = c->actual_y;
+    c->floating_w = c->actual_w;
+    c->floating_h = c->actual_h;
   } else {
-    char *home = getenv("HOME");
-    if (home == NULL) {
-      warn("$XDG_CONFIG_HOME and $HOME not found autostart will not be loaded");
-      return 0;
+    c->x = c->actual_x;
+    c->y = c->actual_y;
+    c->w = c->actual_w;
+    c->h = c->actual_h;
+  }
+}
+
+// borrowed from bspwm
+void toggle_client(client_t *c) {
+  uint32_t values_off[] = {ROOT_EVENT_MASK &
+                           ~XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY};
+  uint32_t values_on[] = {ROOT_EVENT_MASK};
+  xcb_change_window_attributes(dpy, scr->root, XCB_CW_EVENT_MASK, values_off);
+  if (c->visibility == SHOWN) {
+    /* set_window_state(win, XCB_ICCCM_WM_STATE_NORMAL); */
+    xcb_map_window(dpy, c->window);
+  } else {
+    xcb_unmap_window(dpy, c->window);
+    /* set_window_state(win, XCB_ICCCM_WM_STATE_ICONIC); */
+  }
+  xcb_change_window_attributes(dpy, scr->root, XCB_CW_EVENT_MASK, values_on);
+}
+
+void hide_client(client_t *c) {
+  if (c == NULL || !c->mapped)
+    return;
+
+#ifdef DEBUG
+  msg("%p\tclient (%d) -- hidden", c, c->window);
+#endif
+
+  c->visibility = HIDDEN;
+  toggle_client(c);
+}
+
+void show_client(client_t *c) {
+  if (c == NULL || !c->mapped)
+    return;
+
+#ifdef DEBUG
+  msg("%p\tclient (%d) -- shown", c, c->window);
+#endif
+
+  c->visibility = SHOWN;
+  toggle_client(c);
+}
+
+void send_client(client_t *c, int i) {
+  if (i < 0 || c == NULL)
+    return;
+
+  desktop_t *desk = get_desktop(i);
+  // don't send a client to the same desktop it's already on
+  if (desk == focdesk)
+    return;
+  if (desk == NULL)
+#if CREATE_DESKTOP_IF_NOT_EXISTS
+    while (desktop_count <= i) {
+      desk = new_desktop(DEFAULT_LAYOUT);
+      list_append(&focmon->desktops, desk);
+    }
+#else
+    return;
+#endif
+  // remove it from the old workspace and refocus
+  list_remove(&focdesk->clients, c);
+  stack_remove(&focdesk->focus_stack, c);
+  hide_client(c);
+  // focus the new best client
+  if (focdesk->focus_stack != NULL)
+    focus_client((client_t *)focdesk->focus_stack->value);
+
+  // push it to the new workspace
+  list_append(&desk->clients, c);
+  stack_push(&desk->focus_stack, c);
+  desk->focused = c;
+
+  // show the window if it's already on a visible desktop in another monitor
+  for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
+    monitor_t *mon = miter->value;
+    if (mon->focused == desk) {
+      show_client(c);
+      desk->layout.reposition(desk);
+    }
+  }
+
+#if FOLLOW_SEND
+  focus_desktop(desk);
+#endif
+}
+
+void focus_desktop(desktop_t *desk) {
+  if (desk->i == focdesk->i)
+    return;
+
+  monitor_t *mon = get_monitor_for_desktop(desk);
+  if (mon == NULL)
+    die("could not find monitor for desktop");
+
+#ifdef DEBUG
+  msg("desktop %d --> %d", focdesk->i, desk->i);
+  msg("monitor %d --> %d", focmon->monitor, mon->monitor);
+#endif // DEBUG
+
+  // only hide the current windows if we're changing to a desktop on the same
+  // monitor
+  if (mon == focmon)
+    for (list_t *citer = focdesk->clients; citer != NULL; citer = citer->next) {
+      hide_client(citer->value);
     }
 
-    snprintf(cfgp, MAXLEN, "%s/%s/%s", home, ".config", AUTOSTART);
+  focus_monitor(mon);
+  focmon->focused = desk;
+  focdesk->layout.reposition(focdesk);
+  for (list_t *citer = focdesk->clients; citer != NULL; citer = citer->next) {
+    show_client(citer->value);
   }
-
-  return 1;
+  focus_client(focdesk->focused);
 }
 
-static void run_autostart() {
-  if (fork() == 0) {
-    setsid();
-    execl("/bin/sh", "/bin/sh", cfgp, NULL);
-    msg("Executed: %s", cfgp);
-  }
-}
-
-static workspace *ws_curr() { return wm->ws[wm->focus]; }
-
-static workspace *ws_add() {
-  size_t i = cvector_size(wm->ws);
-  workspace *ws;
-
-  if ((ws = calloc(0, sizeof(workspace))) == NULL)
-    die("Cannot allocate memory for a new workspace");
-
-  ws->i = i;
-  cvector_push_back(wm->ws, ws);
-
-  msg("Added workspace %i", ws->i);
-  return ws;
-}
-
-static void ws_delete(size_t ws) {
-  size_t i;
-  cvector_vector_type(client *) cs;
-
-  if (cvector_size(wm->ws) < ws) {
-    warn("Could not delete workspace %i, it does not exist", ws);
-    return;
-  }
-
-  // first, kill any windows in the workspace
-  if ((cs = clients_from_ws(ws)) != NULL) {
-    for (i = 0; i < cvector_size(cs); i++)
-      client_kill(cs[i]);
-
-    // we need to free the array allocated by `clients_from_ws`
-    cvector_free(cs);
-  }
-
-  // if the workspace was focused, shift focus to the previous one.
-  // the previous ws will always be available as we cannot go to -1 number of ws
-  if (wm->focus == ws)
-    ws_focus(ws - 1);
-
-  msg("Removed workspace %i", ws);
-  // lastly remove the workspace from the vector and free some memory
-  cvector_erase(wm->ws, ws);
-}
-
-static void ws_focus(size_t ws) {
-  size_t i;
-  cvector_vector_type(client *) cs;
-  msg("Focusing workspace (from)%i->%i(to)", wm->focus, ws);
-
-  if (ws == wm->focus)
-    return;
-
-  // hide previous windows
-  if ((cs = clients_from_ws(wm->focus)) != NULL) {
-    for (i = 0; i < cvector_size(cs); i++)
-      client_hide(cs[i]);
-
-    cvector_free(cs);
-  }
-
-  wm->focus = ws;
-  if ((cs = clients_from_ws(wm->focus)) != NULL) {
-    for (i = 0; i < cvector_size(cs); i++)
-      client_show(cs[i]);
-
-    cvector_free(cs);
-  }
-
-  // focus the old client in the workspace if any
-  if (ws_curr()->foc)
-    client_focus(ws_curr()->foc);
-}
-
-static cvector_vector_type(client *) clients_from_ws(size_t ws) {
-  size_t i;
-  cvector_vector_type(client *) cs = NULL;
-
-  for (i = 0; i < cvector_size(wm->cs); i++) {
-    if (wm->cs[i]->ws != ws)
+void focus_monitor(monitor_t *mon) {
+  for (list_t *iter = monitors; iter != NULL; iter = iter->next) {
+    monitor_t *m = iter->value;
+    if (m->focused->focused == NULL)
       continue;
 
-    cvector_push_back(cs, wm->cs[i]);
-  }
-
-  return cs;
-}
-
-static client *client_from_window(Window w) {
-  size_t i;
-
-  for (i = 0; i < cvector_size(wm->cs); i++)
-    if (wm->cs[i] && wm->cs[i]->w == w)
-      return wm->cs[i];
-
-  return NULL;
-}
-
-static void client_add(client *c) {
-  msg("adding client to workspace %i(%lu) [x: %i, y: %i, w: %i, h: %i]", c->ws,
-      c->w, c->x, c->y, c->width, c->height);
-
-  // add it to the array of clients
-  cvector_push_back(wm->cs, c);
-}
-
-static void client_show(client *c) {
-  // map the window(show)
-  msg("showing window: %d", c->w);
-
-  c->visible = True;
-  client_move(c, c->x, c->y);
-}
-
-static void client_hide(client *c) {
-  // unmap the window(hide)
-  msg("hiding window: %d", c->w);
-
-  c->visible = False;
-  client_move(c, wm->width, wm->height);
-}
-
-static void client_focus(client *c) {
-  workspace *ws;
-  msg("focusing %p, w: %i", c, c->w);
-
-  ws = ws_curr();
-  ws->foc = c;
-
-  XSetInputFocus(wm->d, c->w, RevertToPointerRoot, CurrentTime);
-  XRaiseWindow(wm->d, c->w);
-}
-
-static void client_center(client *c) {
-  int x, y;
-
-  x = (wm->width - c->width) / 2;
-  y = (wm->height - c->height) / 2;
-
-  client_move(c, x, y);
-}
-
-static void client_move(client *c, int x, int y) {
-  XMoveWindow(wm->d, c->w, x, y);
-
-  // DO NOT update the coordinates in the client object
-  // when we move the window during a hidden state
-  if (c->visible) {
-    c->x = x;
-    c->y = y;
-  }
-}
-
-static void client_resize(client *c, int w, int h) {
-  XResizeWindow(wm->d, c->w, MAX(w, MINIMUM_DIM), MAX(h, MINIMUM_DIM));
-
-  c->width = MAX(w, MINIMUM_DIM);
-  c->height = MAX(h, MINIMUM_DIM);
-}
-
-static void client_border(client *c, char *color) {
-  XColor xc;
-  unsigned long xcolor = 0;
-
-  Colormap m = DefaultColormap(wm->d, wm->s);
-  if (XAllocNamedColor(wm->d, m, color, &xc, &xc))
-    xcolor = xc.pixel;
-
-  XSetWindowBorder(wm->d, c->w, xcolor);
-  XConfigureWindow(wm->d, c->w, CWBorderWidth,
-                   &(XWindowChanges){.border_width = 1});
-}
-
-static void client_close(client *c) {
-  XEvent ev;
-
-  ev.type = ClientMessage;
-  ev.xclient.window = c->w;
-  ev.xclient.message_type = wm_atom[WMProtocols];
-  ev.xclient.format = 32;
-  ev.xclient.data.l[0] = wm_atom[WMDeleteWindow];
-  ev.xclient.data.l[1] = CurrentTime;
-
-  XSendEvent(wm->d, c->w, False, NoEventMask, &ev);
-  msg("Closing client %d", c->w);
-}
-
-static void client_kill(client *c) { XKillClient(wm->d, c->w); }
-
-// removes the client from any leftover reference and frees the memory
-static void client_delete(client *c) {
-  size_t i, id;
-  workspace *ws;
-
-  for (i = 0; i < cvector_size(wm->cs); i++)
-    if (wm->cs[i] == c) {
-      id = i;
-      break;
-    }
-
-  // remove the focused reference from any workspace (if avaiable)
-  for (i = 0; i < cvector_size(wm->ws); i++) {
-    ws = wm->ws[i];
-
-    if (ws->foc == c)
-      // TODO: refocus !!!
-      ws->foc = NULL;
-  }
-
-  msg("Removed client %i(w: %d)", id, c->w);
-  cvector_erase(wm->cs, i);
-  free(c);
-}
-
-static void handle_map_request(XEvent *ev) {
-  static XWindowAttributes wa;
-  XMapRequestEvent *e = &ev->xmaprequest;
-
-  if (!XGetWindowAttributes(wm->d, e->window, &wa)) {
-    warn("Could not get window attributes (%d)", e->window);
-    return;
-  }
-
-  if (wa.override_redirect)
-    return;
-
-  msg("Handling request map event");
-
-  handle_new_window(e->window, &wa);
-}
-
-static void handle_unmap_notify(XEvent *ev) {
-  XUnmapEvent *e = &ev->xunmap;
-  client *c = client_from_window(e->window);
-
-  if (c == NULL) {
-    warn("Recieved UnmapNotify event for a non-managed client %d", e->window);
-    return;
-  }
-
-  /* focus_best(c); */
-  client_delete(c);
-}
-
-static void handle_client_message(XEvent *ev) {
-  XClientMessageEvent *cme = &ev->xclient;
-  long cmd, *data;
-
-  if (cme->message_type == net_kiwi[KiwiClientEvent]) {
-    if (cme->format != 32) {
-      warn("Invalid message format. Ignoring");
-      return;
-    }
-
-    msg("Recieved kiwic message");
-    cmd = cme->data.l[0];
-    data = cme->data.l;
-    if (kiwic_events[cmd])
-      kiwic_events[cmd](data);
+    if (m == mon)
+      border_color(m->focused->focused, UNFOCUSED);
     else
-      warn("Invalid kiwic command (%li)", cmd);
+      border_color(m->focused->focused, FOCUSED_ANOTHER_MONITOR);
   }
-
-  msg("Unhandled client message: %lu", cme->message_type);
+  focmon = mon;
 }
 
-static void handle_new_window(Window w, XWindowAttributes *wa) {
-  client *c;
-
-  if (client_from_window(w) != NULL) {
-    warn("Trying to rehandle as a new window: %d", w);
+void border_color(client_t *c, enum focus_type f) {
+  if (BORDER_WIDTH <= 0 || c->window == scr->root || c->window == 0)
     return;
+
+  uint32_t vals[1];
+  switch (f) {
+  case FOCUSED:
+    vals[0] = BORDER_COLOR_FOCUSED;
+    break;
+  case FOCUSED_ANOTHER_MONITOR:
+    vals[0] = BORDER_COLOR_FOCUSED_ANOTHER;
+    break;
+  case UNFOCUSED:
+    vals[0] = BORDER_COLOR_UNFOCUSED;
+    break;
   }
-
-  c = malloc(sizeof(client));
-  if (c == NULL)
-    die("Could not allocate memory for new client(window)");
-
-  c->w = w;
-  c->visible = True;
-  c->ws = wm->focus;
-  c->x = wa->x;
-  c->y = wa->y;
-  c->width = wa->width;
-  c->height = wa->height;
-  c->border = wa->border_width;
-
-  client_add(c);
-  client_center(c);
-
-  // map it in the display(show) and
-  // focus it on the current workspace
-  XMapWindow(wm->d, c->w);
-  client_focus(c);
-  client_border(c, "#ffffff");
-
-  // grab events
-  XSelectInput(wm->d, c->w,
-               EnterWindowMask | FocusChangeMask | PropertyChangeMask |
-                   StructureNotifyMask);
-  XGrabButton(wm->d, Button1, Mod4Mask, c->w, True,
-              ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
-              GrabModeAsync, GrabModeAsync, None, None);
-  XGrabButton(wm->d, Button3, Mod4Mask, c->w, True,
-              ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
-              GrabModeAsync, GrabModeAsync, None, None);
+  xcb_change_window_attributes(dpy, c->window, XCB_CW_BORDER_PIXEL, vals);
+  xcb_flush(dpy);
 }
 
-static void handle_button_press(XEvent *ev) {
-  /* Much credit to the authors of dwm for
-   * this function.
-   */
-  XButtonPressedEvent *bev = &ev->xbutton;
-  XEvent e;
-  client *c;
-  int x, y, ocx, ocy, nx, ny, nw, nh, di, ocw, och;
-  unsigned int dui;
-  Window dummy;
-
-  XQueryPointer(wm->d, wm->r, &dummy, &dummy, &x, &y, &di, &di, &dui);
-  msg("Handling button press event");
-  c = client_from_window(bev->window);
-  if (c == NULL) {
-    warn("Button click on unkown client (w: %d)", bev->window);
-    return;
-  }
-
-  if (c != ws_curr()->foc)
-    client_focus(c);
-
-  // make a copy of the geometry values as they'll change during resizing/moving
-  ocx = c->x;
-  ocy = c->y;
-  ocw = c->width;
-  och = c->height;
-
-  if (XGrabPointer(wm->d, wm->r, False, MOUSEMASK, GrabModeAsync, GrabModeAsync,
-                   None, move_cursor, CurrentTime) != GrabSuccess)
+void border_width(client_t *c, int width) {
+  if (width <= 0 || c->window == scr->root || c->window == 0)
     return;
 
-  // grab all events while the mouse is held down
-  do {
-    XMaskEvent(wm->d, MOUSEMASK | ExposureMask | SubstructureRedirectMask, &e);
-    switch (e.type) {
-    case ConfigureRequest:
-    case Expose:
-    case MapRequest:
-      events[e.type](&e);
-      break;
-
-    case MotionNotify:
-      msg("Handling motion notify event");
-      if (e.xbutton.state == (cfg.mask | Button1Mask) ||
-          e.xbutton.state == Button1Mask) {
-        nx = ocx + (e.xmotion.x - x);
-        ny = ocy + (e.xmotion.y - y);
-        client_move(c, nx, ny);
-      } else if (e.xbutton.state == (cfg.mask | Button3Mask)) {
-        nw = e.xmotion.x - x;
-        nh = e.xmotion.y - y;
-        client_resize(c, ocw + nw, och + nh);
-      }
-
-      break;
-    }
-  } while (e.type != ButtonRelease);
-  XUngrabPointer(wm->d, CurrentTime);
-}
-
-// TODO(for both): change focused client !!!
-static void kiwic_close(long *e) {
-  client *c = ws_curr()->foc;
-  if (c == NULL)
-    return;
-
-  client_close(c);
-}
-
-static void kiwic_kill(long *e) {
-  client *c = ws_curr()->foc;
-  if (c == NULL)
-    return;
-
-  client_kill(ws_curr()->foc);
-}
-
-static void kiwic_workspaces(long *e) {
-  size_t count = (size_t)e[1], len = cvector_size(wm->ws), i;
-  if (count < 1)
-    return;
-
-  msg("Setting number of workspaces to %i(from)->%i(to)", len, count);
-
-  // shrink the amount of workspaces if the number is lower
-  if (count < len)
-    for (i = len; i >= count; i--)
-      ws_delete(i);
-
-  if (count > len)
-    for (i = len; i < count; i++)
-      ws_add();
-}
-
-static void kiwic_focus_workspace(long *e) {
-  size_t ws = (size_t)e[1];
-
-  if (cvector_size(wm->ws) <= ws)
-    return;
-
-  ws_focus(ws);
-}
-
-static void kiwic_send_to_workspace(long *e) {
-  size_t ws = (size_t)e[1];
-  client *c;
-
-  // stop the execution if the workspace id is invalid or no client is currently
-  // focused
-  if (cvector_size(wm->ws) <= ws || (c = ws_curr()->foc) == NULL)
-    return;
-
-  msg("Moving focused client to workspace (from)%i->%i(to)", c->ws, ws);
-
-  c->ws = ws;
-  client_hide(c);
+  uint32_t vals[2] = {width};
+  xcb_configure_window(dpy, c->window, XCB_CONFIG_WINDOW_BORDER_WIDTH, vals);
+  xcb_flush(dpy);
 }
 
 static void setup() {
-  // initialize vectors
-  wm->ws = NULL;
-  wm->cs = NULL;
+  xcb_keycode_t *keycode;
+  // subscribe to events on the root window
+  uint32_t values[] = {ROOT_EVENT_MASK};
+  xcb_change_window_attributes(dpy, scr->root, XCB_CW_EVENT_MASK, values);
 
-  wm->s = DefaultScreen(wm->d);
-  wm->r = RootWindow(wm->d, wm->s);
-  wm->width = DisplayWidth(wm->d, wm->s);
-  wm->height = DisplayHeight(wm->d, wm->s);
-
-  // provide a default cursor
-  xerrorxlib = XSetErrorHandler(xerror);
-
-  // gather atoms
-  net_kiwi[KiwiClientEvent] = XInternAtom(wm->d, KIWI_CLIENT_EVENT, False);
-
-  wm_atom[WMDeleteWindow] = XInternAtom(wm->d, "WM_DELETE_WINDOW", False);
-  wm_atom[WMTakeFocus] = XInternAtom(wm->d, "WM_TAKE_FOCUS", False);
-  wm_atom[WMProtocols] = XInternAtom(wm->d, "WM_PROTOCOLS", False);
-
-  move_cursor = XCreateFontCursor(wm->d, XC_crosshair);
-  normal_cursor = XCreateFontCursor(wm->d, XC_left_ptr);
-  XDefineCursor(wm->d, wm->r, normal_cursor);
-  // move the cursor to the center of the desktop
-  XWarpPointer(wm->d, None, wm->r, 0, 0, 0, 0, wm->width / 2, wm->height / 2);
-
-  XSelectInput(wm->d, wm->r,
-               SubstructureRedirectMask | SubstructureNotifyMask |
-                   ButtonPressMask | Button1Mask);
-
-  // instantiate at least one workspace
-  wm->focus = 0;
-  ws_add();
-}
-
-int main(void) {
-  XEvent ev;
-
-  if (!(wm = calloc(1, sizeof(state))))
-    die("Could not allocate memory for the wm struct");
-
-  // Exit if display doesn't instantiate
-  if (!(wm->d = XOpenDisplay(NULL)))
-    die("Could not open the Xorg display");
-
-  setup();
-
-  if (find_autostart())
-    run_autostart();
-
-  XSync(wm->d, False);
-  while (!XNextEvent(wm->d, &ev)) {
-    /* msg("Received event of type: %d", ev.type); */
-    if (events[ev.type]) {
-      events[ev.type](&ev);
+  // grab keys
+  xcb_ungrab_key(dpy, XCB_GRAB_ANY, scr->root, XCB_MOD_MASK_ANY);
+  for (int i = 0; i < SIZEOF(keys); ++i) {
+    keycode = xcb_get_keycode(dpy, keys[i].keysym);
+    if (keycode != NULL) {
+      xcb_grab_key(dpy, true, scr->root, keys[i].mod, *keycode,
+                   XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
+      free(keycode);
     }
   }
 
-  cleanup();
+  // grab buttons
+#define GRAB(b)                                                                \
+  xcb_grab_button(dpy, false, scr->root,                                       \
+                  XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE, \
+                  XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, scr->root,         \
+                  XCB_NONE, b, MODKEY);
+  GRAB(XCB_BUTTON_INDEX_1);
+  GRAB(XCB_BUTTON_INDEX_3);
+#undef GRAB
+
+  xcb_flush(dpy);
+
+  if (list_size(monitors) < 1)
+    die("randr: no monitors found");
+
+  // focus the first monitor
+  focmon = monitors->value;
+}
+
+void setup_desktops(monitor_t *mon) {
+  for (int i = 0; i < DEFAULT_DESKTOPS; i++)
+    list_append(&mon->desktops, new_desktop(DEFAULT_LAYOUT));
+  mon->focused = mon->desktops->value;
+}
+
+void clean() {
+  for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
+    monitor_t *mon = miter->value;
+    for (list_t *diter = mon->desktops; diter != NULL; diter = diter->next) {
+      desktop_t *desk = diter->value;
+      list_free(desk->clients, NULL);
+    }
+    list_free(mon->desktops, (void (*)(void *))free_desktop);
+  }
+  list_free(monitors, NULL);
+}
+
+int main() {
+  dpy = xcb_connect(NULL, NULL);
+  if (xcb_has_error(dpy))
+    return 1;
+
+  scr = xcb_setup_roots_iterator(xcb_get_setup(dpy)).data;
+  setup_randr();
+  setup();
+  if (xcb_has_error(dpy))
+    return 1;
+
+  bool running = true;
+  while (running) {
+    xcb_flush(dpy);
+    xcb_generic_event_t *ev;
+
+    if ((ev = xcb_wait_for_event(dpy)) != NULL) {
+      int type = ev->response_type & ~0x80;
+      if (events[type])
+        events[type](ev);
+#ifdef DEBUG
+#ifdef VERBOSE
+      else
+        msg("unhandled event: %s", xcb_event_str(type));
+#endif // VERBOSE
+#endif // DEBUG
+      free(ev);
+    }
+
+    if (xcb_has_error(dpy))
+      running = false;
+  }
+
+  clean();
 }
