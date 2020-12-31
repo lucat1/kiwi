@@ -18,6 +18,7 @@ typedef struct handler_func handler_func_t;
 enum split_direction { SPLIT_VERTICAL, SPLIT_HORIZONTAL };
 enum visibility { SHOWN, HIDDEN };
 enum motion_type { MOTION_NONE, MOTION_DRAGGING, MOTION_RESIZING };
+enum focus_type { FOCUSED, FOCUSED_ANOTHER_MONITOR, UNFOCUSED };
 enum direction {
   DIRECTION_LEFT,
   DIRECTION_RIGHT,

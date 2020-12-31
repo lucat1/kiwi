@@ -37,8 +37,9 @@ void hide_client(client_t *c);
 void show_client(client_t *c);
 void fit_client(client_t *c, monitor_t *mon);
 void focus_desktop(desktop_t *desk);
+void focus_monitor(monitor_t *mon);
 void send_client(client_t *c, int i);
-void border_color(client_t *c, bool focus);
+void border_color(client_t *c, enum focus_type f);
 void border_width(client_t *c, int width);
 void setup_desktops(monitor_t *mon);
 

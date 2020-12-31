@@ -81,7 +81,7 @@ void handle_button_press(xcb_generic_event_t *ev) {
   client_t *c = get_client(e->state < MODKEY ? e->event : e->child);
   monitor_t *mon = get_monitor_by_coords(e->root_x, e->root_y);
   if (mon != NULL)
-    focmon = mon;
+    focus_monitor(mon);
 
 #if DEBUG
   print_monitors();

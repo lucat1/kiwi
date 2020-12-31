@@ -90,11 +90,11 @@ void focus_client(client_t *c) {
 
   // remove focus from the previous client
   if (focdesk->focused != NULL)
-    border_color(focdesk->focused, false);
+    border_color(focdesk->focused, UNFOCUSED);
 
   // focus the new client
   focdesk->focused = c;
-  border_color(focdesk->focused, true);
+  border_color(focdesk->focused, FOCUSED);
 
   // push the client to the focus list if we have an empty one or
   // the client isn't already at the top of it
@@ -312,11 +312,7 @@ void focus_desktop(desktop_t *desk) {
       hide_client(citer->value);
     }
 
-  // TODO: remove input focus
-  if (focdesk->focused != NULL)
-    border_color(focdesk->focused, false);
-
-  focmon = mon;
+  focus_monitor(mon);
   focmon->focused = desk;
   focdesk->layout.reposition(focdesk);
   for (list_t *citer = focdesk->clients; citer != NULL; citer = citer->next) {
@@ -325,11 +321,36 @@ void focus_desktop(desktop_t *desk) {
   focus_client(focdesk->focused);
 }
 
-void border_color(client_t *c, bool focus) {
+void focus_monitor(monitor_t *mon) {
+  for (list_t *iter = monitors; iter != NULL; iter = iter->next) {
+    monitor_t *m = iter->value;
+    if (m->focused->focused == NULL)
+      continue;
+
+    if (m == mon)
+      border_color(m->focused->focused, UNFOCUSED);
+    else
+      border_color(m->focused->focused, FOCUSED_ANOTHER_MONITOR);
+  }
+  focmon = mon;
+}
+
+void border_color(client_t *c, enum focus_type f) {
   if (BORDER_WIDTH <= 0 || c->window == scr->root || c->window == 0)
     return;
 
-  uint32_t vals[1] = {focus ? BORDER_COLOR_FOCUSED : BORDER_COLOR_UNFOCUSED};
+  uint32_t vals[1];
+  switch (f) {
+  case FOCUSED:
+    vals[0] = BORDER_COLOR_FOCUSED;
+    break;
+  case FOCUSED_ANOTHER_MONITOR:
+    vals[0] = BORDER_COLOR_FOCUSED_ANOTHER;
+    break;
+  case UNFOCUSED:
+    vals[0] = BORDER_COLOR_UNFOCUSED;
+    break;
+  }
   xcb_change_window_attributes(dpy, c->window, XCB_CW_BORDER_PIXEL, vals);
   xcb_flush(dpy);
 }

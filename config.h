@@ -43,6 +43,7 @@
 
 // colors for window borders
 #define BORDER_COLOR_UNFOCUSED 0x696969
+#define BORDER_COLOR_FOCUSED_ANOTHER 0x282828
 #define BORDER_COLOR_FOCUSED 0xFFFFFF
 
 // minimum window sizes to be held while resizing
