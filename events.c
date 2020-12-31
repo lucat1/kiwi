@@ -28,8 +28,6 @@ void (*events[XCB_NO_OPERATION])(xcb_generic_event_t *e) = {
 };
 
 void handle_create_notify(xcb_generic_event_t *ev) {
-  msg("%p", focmon);
-  msg("%p", focdesk);
   xcb_create_notify_event_t *e = (xcb_create_notify_event_t *)ev;
   client_t *c = new_client(e->window);
   list_append(&focdesk->clients, c);
