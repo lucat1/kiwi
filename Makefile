@@ -3,15 +3,10 @@ CFLAGS += -std=c99 -Wall -Wextra -pedantic -Wold-style-declaration -Wno-missing-
 
 LDFLAGS += -lxcb -lxcb-keysyms -lxcb-randr
 PREFIX ?= /usr
-BINDIR ?= $(PREFIX)/bin
-BIN = kiwi
+PROG = kiwi
 
-SRC = $(wildcard *.c)
-OBJ := $(SRC:.c=.o)
-
-kiwi: $(OBJ) 
-	@echo "LD\t$(BIN)"
-	@$(CC) $(LDFLAGS) -o $(BIN) $(OBJ) 
+$(PROG): $(PROG).c config.h
+	$(CC) $(LDFLAGS) -o $(PROG) $(PROG).c
 
 dev: CFLAGS += -DDEBUG
 dev: kiwi
@@ -22,14 +17,9 @@ debug: clean kiwi
 profile: CFLAGS += -DDEBUG -pg
 profile: clean kiwi
 
-$(OBJ): config.h
-$(OBJ): %.o: %.c
-	@echo "CC\t$<"
-	@$(CC) $(CFLAGS) -c -o $@ $(@:%.o=%.c)
-
 .PHONY: clean install uninstall
 clean:
-	rm *.o kiwi
+	rm $(PROG)
 
 install: kiwi
 	@echo installing to $(DESTDIR)$(BINDIR)

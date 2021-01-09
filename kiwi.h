@@ -1,11 +1,23 @@
 #ifndef KIWI_H
 #define KIWI_H
 
-#include "data.h"
 #include <stdbool.h>
 #include <xcb/randr.h>
 #include <xcb/xcb.h>
 #include <xcb/xcb_keysyms.h>
+
+typedef struct list list_t;
+typedef struct lifo lifo_t;
+
+struct list {
+  void *value;
+  struct list *next;
+};
+
+struct lifo {
+  void *value;
+  struct lifo *prev;
+};
 
 typedef struct client client_t;
 typedef struct layout layout_t;
@@ -64,7 +76,7 @@ struct desktop {
   client_t *focused;
 
   list_t *clients;
-  stack_t *focus_stack;
+  lifo_t *focus_stack;
 };
 
 struct monitor {
@@ -101,12 +113,15 @@ struct handler_func {
   void (*func)(xcb_generic_event_t *ev);
 };
 
-extern list_t *monitors;  // list of monitors
-extern monitor_t *focmon; // the currently focused monitor
-#define focdesk ((desktop_t *)focmon->focused)
-extern xcb_connection_t *dpy; // the X display
-extern xcb_screen_t *scr;     // the X screen
-extern int desktop_count;
+void list_append(list_t **l, void *ele);
+void list_remove(list_t **l, void *ele);
+void list_free(list_t *l, void (*free)(void *));
+int list_size(list_t *l);
+
+void stack_push(lifo_t **s, void *ele);
+void *stack_pop(lifo_t **s);
+void stack_remove(lifo_t **s, void *ele);
+void stack_free(lifo_t *s);
 
 // data operations
 client_t *new_client(xcb_window_t w);
@@ -152,6 +167,11 @@ void focus_monitor(monitor_t *mon);
 void send_client(client_t *c, int i);
 void setup_desktops(monitor_t *mon);
 
+extern const layout_t floating_layout;
+extern const layout_t tiling_layout;
+
 #include "config.h"
 
 #endif // KIWI_H
+
+// vim: set foldmethod=marker foldmarker={{{,}}}:

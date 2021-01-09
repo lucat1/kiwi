@@ -2,7 +2,6 @@
 #define CONFIG_H
 
 #include "kiwi.h"
-#include "layouts.h"
 #include <X11/keysym.h>
 #include <xcb/xcb_keysyms.h>
 
@@ -42,7 +41,8 @@
 #define BORDER_TILING 1
 // the gaps to leave between the windows and the screen
 // NOTE: only applies in tiling
-// NOTE: can accept negative values (to remove borders on windows around the screen)
+// NOTE: can accept negative values (to remove borders on windows around the
+// screen)
 #define SCREEN_GAPS -1
 
 // colors for window borders
