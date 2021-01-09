@@ -12,3 +12,8 @@ Dependencies:
   - libxcb-devel
   - xcb-util-keysyms-devel
   - libX11-devel (needed for configuration)
+
+Todo:
+  - move everything into one file
+  - remove the difference between create/map windows
+  - smplify overall where i can

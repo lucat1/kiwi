@@ -1,7 +1,6 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#include "data.h"
 #include "kiwi.h"
 #include "layouts.h"
 #include <X11/keysym.h>
@@ -35,7 +34,16 @@
 #define SPLIT_RATIO .6f
 
 // the border around each window. can be set to 0 to remove
-#define BORDER_WIDTH 1
+#define BORDER_WIDTH_TOP 25
+#define BORDER_WIDTH_LEFT 1
+#define BORDER_WIDTH_RIGHT 1
+#define BORDER_WIDTH_BOTTOM 1
+// when tiling we only apply the same border all-around
+#define BORDER_TILING 1
+// the gaps to leave between the windows and the screen
+// NOTE: only applies in tiling
+// NOTE: can accept negative values (to remove borders on windows around the screen)
+#define SCREEN_GAPS -1
 
 // colors for window borders
 #define BORDER_COLOR_UNFOCUSED 0x696969

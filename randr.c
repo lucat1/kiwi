@@ -1,5 +1,4 @@
 #include "randr.h"
-#include "data.h"
 #include "kiwi.h"
 #include "util.h"
 #include <stdio.h>

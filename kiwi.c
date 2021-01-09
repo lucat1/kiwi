@@ -1,6 +1,5 @@
 #include "kiwi.h"
 #include "config.h"
-#include "data.h"
 #include "events.h"
 #include "layouts.h"
 #include "randr.h"
@@ -11,6 +10,7 @@
 #include <stdlib.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <xcb/randr.h>
 #include <xcb/xcb.h>
 #include <xcb/xproto.h>
 
@@ -22,6 +22,158 @@ list_t *monitors;
 monitor_t *focmon;
 xcb_connection_t *dpy = NULL;
 xcb_screen_t *scr = NULL;
+int desktop_count = 0;
+
+// initializes a client struct
+client_t *new_client(xcb_window_t w) {
+#ifdef DEBUG
+  if (get_client(w) != NULL)
+    fail("attempted to initialize new client with an existing window %d", w);
+#endif
+
+  client_t *c = malloc(sizeof(client_t));
+  c->window = w;
+  c->mapped = false;
+  c->split_ratio = SPLIT_RATIO;
+  c->visibility = HIDDEN;
+  c->motion = MOTION_NONE;
+
+  xcb_get_geometry_reply_t *geom = xcb_geometry(dpy, w);
+  c->actual_x = c->x = c->floating_x = (focmon->w - geom->width) / 2;
+  c->actual_y = c->y = c->floating_y = (focmon->h - geom->height) / 2;
+  c->actual_w = c->w = c->floating_w = geom->width;
+  c->actual_h = c->h = c->floating_h = geom->height;
+
+  create_decour(c);
+  c->decour_color = BORDER_COLOR_UNFOCUSED;
+
+  free(geom);
+  return c;
+}
+
+client_t *get_client(xcb_window_t w) {
+  for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
+    monitor_t *mon = miter->value;
+    for (list_t *diter = mon->desktops; diter != NULL; diter = diter->next) {
+      desktop_t *desk = diter->value;
+      for (list_t *citer = desk->clients; citer != NULL; citer = citer->next) {
+        client_t *c = (client_t *)citer->value;
+        if (c->window == w)
+          return c;
+      }
+    }
+  }
+
+  return NULL;
+}
+
+// initializes a desktop struct
+desktop_t *new_desktop(layout_t l) {
+  desktop_t *desk = malloc(sizeof(desktop_t));
+  desk->i = desktop_count++;
+  desk->layout = l;
+  desk->clients = NULL;
+  desk->focused = NULL;
+  desk->focus_stack = NULL;
+
+  return desk;
+}
+
+desktop_t *get_desktop(int i) {
+  for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
+    monitor_t *mon = miter->value;
+    for (list_t *diter = mon->desktops; diter != NULL; diter = diter->next) {
+      desktop_t *desk = diter->value;
+      if (desk->i == i)
+        return desk;
+    }
+  }
+
+  return NULL;
+}
+
+void free_desktop(desktop_t *list) {
+  stack_free(list->focus_stack);
+  desktop_count--;
+}
+
+monitor_t *new_monitor(xcb_randr_output_t monitor, const char *name, int16_t x,
+                       int16_t y, uint16_t w, uint16_t h) {
+  monitor_t *mon = malloc(sizeof(monitor_t));
+  mon->monitor = monitor;
+  mon->name = name;
+  mon->x = x;
+  mon->y = y;
+  mon->w = w;
+  mon->h = h;
+  mon->focused = NULL;
+  mon->desktops = NULL;
+  return mon;
+}
+
+// returns the monitor which contains the requested desktop
+monitor_t *get_monitor_for_desktop(desktop_t *desk) {
+  for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
+    monitor_t *mon = miter->value;
+    for (list_t *diter = mon->desktops; diter != NULL; diter = diter->next) {
+      desktop_t *desktop = diter->value;
+      if (desktop == desk)
+        return mon;
+    }
+  }
+  return NULL;
+}
+
+monitor_t *get_monitor_for_client(client_t *c) {
+  for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
+    monitor_t *mon = miter->value;
+    for (list_t *diter = mon->desktops; diter != NULL; diter = diter->next) {
+      desktop_t *desk = diter->value;
+      for (list_t *citer = desk->clients; citer != NULL; citer = citer->next) {
+        client_t *client = citer->value;
+        if (client == c)
+          return mon;
+      }
+    }
+  }
+
+  return NULL;
+}
+
+// find a monitor in the mirror list by its xcb identifier
+monitor_t *get_monitor_by_id(xcb_randr_output_t m) {
+  for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
+    monitor_t *mon = miter->value;
+    if (mon->monitor == m)
+      return mon;
+  }
+
+  return NULL;
+}
+
+// find a monitor by its coordinates
+monitor_t *get_monitor_by_coords(int16_t x, int16_t y) {
+  for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
+    monitor_t *mon = miter->value;
+    // mon->x < x < mon->x+mon->w
+    // mon->y < y < mon->y+mon->h
+    if ((x >= mon->x && x <= (mon->x + mon->w)) &&
+        (y >= mon->y && y <= (mon->y + mon->h)))
+      return mon;
+  }
+
+  return NULL;
+}
+
+// find cloned (mirrored) outputs
+monitor_t *get_monitor_clones(xcb_randr_output_t m, int16_t x, int16_t y) {
+  for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
+    monitor_t *mon = miter->value;
+    if (mon->monitor != m && mon->x == x && mon->y == y)
+      return mon;
+  }
+  return NULL;
+}
 
 void killclient(FN_ARG arg) {
   UNUSED(arg);
@@ -90,12 +242,15 @@ void focus_client(client_t *c) {
     return;
 
   // remove focus from the previous client
-  if (focdesk->focused != NULL)
-    border_color(focdesk->focused, UNFOCUSED);
+  if (focdesk->focused != NULL) {
+    focdesk->focused->decour_color = UNFOCUSED;
+    decorate_client(c);
+  }
 
   // focus the new client
   focdesk->focused = c;
-  border_color(focdesk->focused, FOCUSED);
+  c->decour_color = FOCUSED;
+  decorate_client(c);
 
   // push the client to the focus list if we have an empty one or
   // the client isn't already at the top of it
@@ -166,11 +321,12 @@ void fit_client(client_t *c, monitor_t *mon) {
       mon->h);
 #endif // DEBUG
 
-  int bw = BORDER_WIDTH * 2;
-  if (c->floating_w + bw > mon->w)
-    move_resize_client(c, 0, c->floating_y, mon->w - bw, c->floating_h);
-  else if (c->floating_w + c->floating_x + bw > mon->w)
-    move_client(c, mon->w - c->floating_w - bw, c->floating_y);
+  uint16_t bwx = BORDER_WIDTH_LEFT + BORDER_WIDTH_RIGHT;
+  uint16_t bwy = BORDER_WIDTH_TOP + BORDER_WIDTH_BOTTOM;
+  if (c->floating_w + bwx > mon->w)
+    move_resize_client(c, 0, c->floating_y, mon->w - bwx, c->floating_h);
+  else if (c->floating_w + c->floating_x + bwx > mon->w)
+    move_client(c, mon->w - c->floating_w - bwx, c->floating_y);
 #ifdef DEBUG
 #ifdef VERBOSE
   else
@@ -178,10 +334,10 @@ void fit_client(client_t *c, monitor_t *mon) {
 #endif // VERBOSE
 #endif // DEBUG
 
-  if (c->floating_h + bw > mon->h)
-    move_resize_client(c, c->actual_x, 0, c->actual_x, mon->h - bw);
-  else if (c->floating_h + c->floating_y + bw > mon->h)
-    move_client(c, c->actual_x, mon->h - c->floating_h - bw);
+  if (c->floating_h + bwy > mon->h)
+    move_resize_client(c, c->actual_x, 0, c->actual_x, mon->h - bwy);
+  else if (c->floating_h + c->floating_y + bwy > mon->h)
+    move_client(c, c->actual_x, mon->h - c->floating_h - bwy);
 #ifdef DEBUG
 #ifdef VERBOSE
   else
@@ -208,16 +364,19 @@ void save_client(client_t *c, enum layout_type t) {
 }
 
 // borrowed from bspwm
-void toggle_client(client_t *c) {
+void toggle_window(xcb_window_t win, enum visibility v) {
+#ifdef DEBUG
+  msg("\ttoggling window %d", win);
+#endif // DEBUG
   uint32_t values_off[] = {ROOT_EVENT_MASK &
                            ~XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY};
   uint32_t values_on[] = {ROOT_EVENT_MASK};
   xcb_change_window_attributes(dpy, scr->root, XCB_CW_EVENT_MASK, values_off);
-  if (c->visibility == SHOWN) {
+  if (v == SHOWN) {
     /* set_window_state(win, XCB_ICCCM_WM_STATE_NORMAL); */
-    xcb_map_window(dpy, c->window);
+    xcb_map_window(dpy, win);
   } else {
-    xcb_unmap_window(dpy, c->window);
+    xcb_unmap_window(dpy, win);
     /* set_window_state(win, XCB_ICCCM_WM_STATE_ICONIC); */
   }
   xcb_change_window_attributes(dpy, scr->root, XCB_CW_EVENT_MASK, values_on);
@@ -232,7 +391,7 @@ void hide_client(client_t *c) {
 #endif
 
   c->visibility = HIDDEN;
-  toggle_client(c);
+  toggle_window(c->window, c->visibility);
 }
 
 void show_client(client_t *c) {
@@ -244,7 +403,65 @@ void show_client(client_t *c) {
 #endif
 
   c->visibility = SHOWN;
-  toggle_client(c);
+  toggle_window(c->window, c->visibility);
+}
+
+bool is_decour(xcb_window_t w) {
+  for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
+    monitor_t *mon = miter->value;
+    for (list_t *diter = mon->desktops; diter != NULL; diter = diter->next) {
+      desktop_t *desk = diter->value;
+      for (list_t *citer = desk->clients; citer != NULL; citer = citer->next) {
+        client_t *c = citer->value;
+        if (c->decour == w)
+          return true;
+      }
+    }
+  }
+  return false;
+}
+
+void create_decour(client_t *c) {
+  uint32_t values[2], mask;
+
+  // make the pixmap for the window
+  c->decour_pixmap = xcb_generate_id(dpy);
+  xcb_create_pixmap(dpy, scr->root_depth, c->decour_pixmap, scr->root,
+                    c->w + BORDER_WIDTH_LEFT + BORDER_WIDTH_RIGHT,
+                    c->h + BORDER_WIDTH_TOP + BORDER_WIDTH_BOTTOM);
+
+  // create a context for filling with the given color
+  c->decour_gc = xcb_generate_id(dpy);
+  mask = XCB_GC_FOREGROUND | XCB_GC_BACKGROUND;
+  values[0] = values[1] = c->decour_color;
+  xcb_create_gc(dpy, c->decour_gc, 0, mask, values);
+
+  // create the window
+  c->decour = xcb_generate_id(dpy);
+  mask = XCB_CW_BACK_PIXMAP /* | XCB_CW_EVENT_MASK*/;
+  values[0] = c->decour_pixmap;
+  // TODO: we could listen for grabs so we can move windows by titlebars
+  uint16_t width = c->w + BORDER_WIDTH_LEFT + BORDER_WIDTH_RIGHT,
+           height = c->h + BORDER_WIDTH_TOP + BORDER_WIDTH_BOTTOM;
+  msg("width %d, height %d", width, height);
+  xcb_create_window(dpy, scr->root_depth, c->decour, scr->root,
+                    c->x - BORDER_WIDTH_LEFT, c->y - BORDER_WIDTH_TOP, width,
+                    height, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, scr->root_visual,
+                    mask, values);
+  xcb_map_window(dpy, c->decour);
+
+  xcb_poly_fill_rectangle(dpy, c->decour_pixmap, c->decour_gc, 1,
+                          (xcb_rectangle_t[]){{0, 0, width, height}});
+  /* xcb_free_pixmap(dpy, c->decour_pixmap); */
+  /* xcb_free_gc(dpy, c->decour_gc); */
+}
+
+// updates the client's decorations
+void decorate_client(client_t *c) {
+  if (c == NULL)
+    return;
+
+  msg("bordering client");
 }
 
 void send_client(client_t *c, int i) {
@@ -327,46 +544,19 @@ void focus_monitor(monitor_t *mon) {
 
   for (list_t *iter = monitors; iter != NULL; iter = iter->next) {
     monitor_t *m = iter->value;
-    if (m->focused->focused == NULL)
+    if (m->focused == NULL || m->focused->focused == NULL)
       continue;
 
+    client_t *c = m->focused->focused;
     if (m == mon)
-      border_color(m->focused->focused, UNFOCUSED);
+      c->decour_color = UNFOCUSED;
     else
-      border_color(m->focused->focused, FOCUSED_ANOTHER_MONITOR);
+      c->decour_color = FOCUSED_ANOTHER_MONITOR;
+    decorate_client(c);
   }
 
   focmon = mon;
   wm_info();
-}
-
-void border_color(client_t *c, enum focus_type f) {
-  if (BORDER_WIDTH <= 0 || c->window == scr->root || c->window == 0)
-    return;
-
-  uint32_t vals[1];
-  switch (f) {
-  case FOCUSED:
-    vals[0] = BORDER_COLOR_FOCUSED;
-    break;
-  case FOCUSED_ANOTHER_MONITOR:
-    vals[0] = BORDER_COLOR_FOCUSED_ANOTHER;
-    break;
-  case UNFOCUSED:
-    vals[0] = BORDER_COLOR_UNFOCUSED;
-    break;
-  }
-  xcb_change_window_attributes(dpy, c->window, XCB_CW_BORDER_PIXEL, vals);
-  xcb_flush(dpy);
-}
-
-void border_width(client_t *c, int width) {
-  if (width <= 0 || c->window == scr->root || c->window == 0)
-    return;
-
-  uint32_t vals[2] = {width};
-  xcb_configure_window(dpy, c->window, XCB_CONFIG_WINDOW_BORDER_WIDTH, vals);
-  xcb_flush(dpy);
 }
 
 static void setup() {

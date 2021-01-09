@@ -1,5 +1,6 @@
 #!/bin/sh -e
 
+make clean
 make dev
 # make debug
 

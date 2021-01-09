@@ -2,7 +2,6 @@
 #include "config.h"
 #include "data.h"
 #include "kiwi.h"
-#include "list.h"
 #include "randr.h"
 #include "util.h"
 #include <stdbool.h>
@@ -29,6 +28,8 @@ void (*events[XCB_NO_OPERATION])(xcb_generic_event_t *e) = {
 
 void handle_create_notify(xcb_generic_event_t *ev) {
   xcb_create_notify_event_t *e = (xcb_create_notify_event_t *)ev;
+  if (is_decour(e->window))
+    return;
   client_t *c = new_client(e->window);
   list_append(&focdesk->clients, c);
 }
@@ -36,6 +37,8 @@ void handle_create_notify(xcb_generic_event_t *ev) {
 void handle_map_request(xcb_generic_event_t *ev) {
   xcb_map_request_event_t *e = (xcb_map_request_event_t *)ev;
   client_t *c = get_client(e->window);
+  if (c == NULL) // a window not handled by the window manager
+    return;
 
 #if !FOCUS_TYPE
   // start grabbing for clicks on the window
@@ -50,7 +53,6 @@ void handle_map_request(xcb_generic_event_t *ev) {
 
   c->mapped = true;
   show_client(c);
-  border_width(c, BORDER_WIDTH);
   focus_client(c);
   focdesk->layout.reposition(focdesk);
 }

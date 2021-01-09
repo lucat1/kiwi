@@ -1,8 +1,5 @@
 #include "layouts.h"
-#include "config.h"
-#include "data.h"
 #include "kiwi.h"
-#include "list.h"
 #include "util.h"
 
 #define MAX(a, b) (a > b ? a : b)
@@ -49,16 +46,17 @@ static void floating_reposition(desktop_t *desk) {
 
 static void floating_motion(rel_pointer_t p, client_t *c, monitor_t *mon) {
   UNUSED(mon);
-  int bw = BORDER_WIDTH * 2;
+  uint16_t bwx = BORDER_WIDTH_LEFT + BORDER_WIDTH_RIGHT;
+  uint16_t bwy = BORDER_WIDTH_TOP + BORDER_WIDTH_BOTTOM;
   if (c->motion == MOTION_DRAGGING) {
-    int16_t x = MIN(mon->w - c->floating_w - bw, MAX(c->floating_x + p.x, 0));
-    int16_t y = MIN(mon->h - c->floating_h - bw, MAX(c->floating_y + p.y, 0));
+    int16_t x = MIN(mon->w - c->floating_w - bwx, MAX(c->floating_x + p.x, 0));
+    int16_t y = MIN(mon->h - c->floating_h - bwy, MAX(c->floating_y + p.y, 0));
     move_client(c, x, y);
   } else if (c->motion == MOTION_RESIZING) {
     int16_t w =
-        MIN(mon->w - c->floating_x - bw, MAX(c->floating_w + p.x, MIN_WIDTH));
+        MIN(mon->w - c->floating_x - bwx, MAX(c->floating_w + p.x, MIN_WIDTH));
     int16_t h =
-        MIN(mon->h - c->floating_y - bw, MAX(c->floating_h + p.y, MIN_HEIGHT));
+        MIN(mon->h - c->floating_y - bwy, MAX(c->floating_h + p.y, MIN_HEIGHT));
     resize_client(c, w, h);
   }
 }
@@ -119,9 +117,11 @@ static void tiling_reposition(desktop_t *desk) {
   if (mon == NULL)
     fail("could not get monitor for desktop");
 
-  int x = 0, y = 0, w = mon->w, h = mon->h;
-  const int bw = BORDER_WIDTH * 2;
+  int16_t x = SCREEN_GAPS, y = SCREEN_GAPS;
+  uint16_t w = mon->w - SCREEN_GAPS, h = mon->h - SCREEN_GAPS,
+           bw = BORDER_TILING * 2;
   client_t *first = first_mapped(desk->clients);
+
   for (list_t *iter = desk->clients; iter != NULL; iter = iter->next) {
     bool fill = should_fill(iter->next);
     int width, height;

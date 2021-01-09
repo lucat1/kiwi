@@ -1,7 +1,7 @@
 #ifndef EVENTS_H
 #define EVENTS_H
 
-#include "data.h"
+#include "kiwi.h"
 #include <X11/Xlib.h>
 #include <xcb/xcb.h>
 
