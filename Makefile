@@ -5,8 +5,7 @@ LDFLAGS += -lxcb -lxcb-keysyms -lxcb-randr
 PREFIX ?= /usr
 PROG = kiwi
 
-$(PROG): $(PROG).c config.h
-	$(CC) $(LDFLAGS) -o $(PROG) $(PROG).c
+.PHONY: dev debug profile clean install uninstall
 
 dev: CFLAGS += -DDEBUG
 dev: kiwi
@@ -17,7 +16,9 @@ debug: clean kiwi
 profile: CFLAGS += -DDEBUG -pg
 profile: clean kiwi
 
-.PHONY: clean install uninstall
+$(PROG): $(PROG).c config.h
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $(PROG) $(PROG).c
+
 clean:
 	rm $(PROG)
 

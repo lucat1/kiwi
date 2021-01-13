@@ -17,7 +17,6 @@
 // {{{ events
 static void (*events[XCB_NO_OPERATION])(xcb_generic_event_t *e);
 
-static void handle_create_notify(xcb_generic_event_t *ev);
 static void handle_map_request(xcb_generic_event_t *ev);
 static void handle_destroy_notify(xcb_generic_event_t *ev);
 static void handle_button_press(xcb_generic_event_t *ev);
@@ -78,7 +77,7 @@ void _print(const char *t, const char *fn, const char *fmt, ...) {
 #ifdef DEBUG
   printf("[%s] (%s in %s:%d) ", t, fn, f, l);
 #else
-  printf("[%s] (%s)", fn, t);
+  printf("[%s] (%s) ", fn, t);
 #endif // DEBUG
   vprintf(fmt, args);
   printf("\n");
@@ -87,15 +86,6 @@ void _print(const char *t, const char *fn, const char *fmt, ...) {
 #ifdef DEBUG
   fflush(stdout);
 #endif // DEBUG
-}
-
-static int mapped_clients_size(list_t *l) {
-  int size = 0;
-  for (; l != NULL; l = l->next) {
-    if (((client_t *)l->value)->mapped)
-      size++;
-  }
-  return size;
 }
 
 // prints a debug message to the console and updates the WM_NAME property of the
@@ -136,7 +126,7 @@ void wm_info() {
         APPEND(",");
 
       APPEND("(%d,%d,%d)", desk->i + 1, mon->focused == desk,
-             mapped_clients_size(desk->clients));
+             list_size(desk->clients));
 #ifdef DEBUG
       if (mon->focused == desk)
         sprintf(debug_str, "focused");
@@ -154,14 +144,13 @@ void wm_info() {
         else
           sprintf(debug_str, "shown");
 
-        printf("%p\t\t\tclient (%d) -- [%d] %s\n", (void *)c, c->window,
-               c->mapped, debug_str);
+        printf("%p\t\t\tclient (%d) -- %s\n", (void *)c, c->window, debug_str);
       }
 #endif // DEBUG
     }
     APPEND("])");
   }
-#if DEBUG
+#ifdef DEBUG
   printf("--------------------------------------------------------\n");
 #endif // DEBUG
   len += sprintf(str + len, "]");
@@ -428,19 +417,25 @@ client_t *new_client(xcb_window_t w) {
 
   client_t *c = malloc(sizeof(client_t));
   c->window = w;
-  c->mapped = false;
   c->split_ratio = SPLIT_RATIO;
   c->visibility = HIDDEN;
   c->motion = MOTION_NONE;
 
   xcb_get_geometry_reply_t *geom = xcb_geometry(dpy, w);
-  c->actual_x = c->x = c->floating_x = (focmon->w - geom->width) / 2;
-  c->actual_y = c->y = c->floating_y = (focmon->h - geom->height) / 2;
-  c->actual_w = c->w = c->floating_w = geom->width;
-  c->actual_h = c->h = c->floating_h = geom->height;
+  c->x = c->floating_x = c->tiling_x =
+      ((focmon->w - geom->width + BORDER_WIDTH_LEFT) / 2);
+  c->y = c->floating_y = c->tiling_y =
+      ((focmon->h - geom->height + BORDER_WIDTH_TOP) / 2);
+  c->w = c->floating_w = c->tiling_w = geom->width;
+  c->h = c->floating_h = c->tiling_h = geom->height;
 
-  create_decour(c);
-  c->decour_color = BORDER_COLOR_UNFOCUSED;
+  c->decour_x = c->x - BORDER_WIDTH_LEFT;
+  c->decour_y = c->y - BORDER_WIDTH_TOP;
+  c->decour_w = c->w + BORDER_WIDTH_LEFT + BORDER_WIDTH_RIGHT;
+  c->decour_h = c->h + BORDER_WIDTH_TOP + BORDER_WIDTH_BOTTOM;
+
+  c->decour_color = c->prev_decour_color = BORDER_COLOR_UNFOCUSED;
+  new_decour(c);
 
   free(geom);
   return c;
@@ -491,7 +486,7 @@ void focus_client(client_t *c) {
   wm_info();
 }
 
-void move_client(client_t *c, int16_t x, int16_t y) {
+void move_client(client_t *c, int16_t new_x, int16_t new_y) {
   if (c == NULL)
     return;
 
@@ -499,27 +494,44 @@ void move_client(client_t *c, int16_t x, int16_t y) {
   if ((mon = get_monitor_for_client(c)) == NULL)
     fail("could not get monitor for client");
 
-  c->actual_x = x;
-  c->actual_y = y;
-  uint32_t values[2] = {mon->x + x, mon->y + y};
+  // keep the new_x and new_y between minimum and maximum values to prevent the
+  // window from going off-screen
+  new_x =
+      MIN(mon->w - c->w - BORDER_WIDTH_RIGHT, MAX(new_x, BORDER_WIDTH_LEFT));
+  new_y =
+      MIN(mon->h - c->h - BORDER_WIDTH_BOTTOM, MAX(new_y, BORDER_WIDTH_TOP));
+  int16_t diff_x = new_x - c->x, diff_y = new_y - c->y;
+
+  // move the window drawable
+  c->x = new_x;
+  c->y = new_y;
+  uint32_t values[2] = {mon->x + new_x, mon->y + new_y};
   xcb_configure_window(dpy, c->window,
+                       XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
+
+  // move the decoration along with the window
+  c->decour_x += diff_x;
+  c->decour_y += diff_y;
+  values[0] = mon->x + c->decour_x;
+  values[1] = mon->y + c->decour_y;
+  xcb_configure_window(dpy, c->decour,
                        XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
 }
 
-void resize_client(client_t *c, uint16_t w, uint16_t h) {
+void resize_client(client_t *c, uint16_t new_w, uint16_t new_h) {
   if (c == NULL)
     return;
 
-  c->actual_w = w;
-  c->actual_h = h;
-  uint32_t values[2] = {w, h};
+  c->w = new_w;
+  c->h = new_h;
+  uint32_t values[2] = {new_w, new_h};
   xcb_configure_window(dpy, c->window,
                        XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
                        values);
 }
 
-void move_resize_client(client_t *c, int16_t x, int16_t y, uint16_t w,
-                        uint16_t h) {
+void move_resize_client(client_t *c, int16_t new_x, int16_t new_y,
+                        uint16_t new_w, uint16_t new_h) {
   if (c == NULL)
     return;
 
@@ -527,11 +539,11 @@ void move_resize_client(client_t *c, int16_t x, int16_t y, uint16_t w,
   if ((mon = get_monitor_for_client(c)) == NULL)
     fail("could not get monitor for client");
 
-  c->actual_x = x;
-  c->actual_y = y;
-  c->actual_w = w;
-  c->actual_h = h;
-  uint32_t values[4] = {mon->x + x, mon->y + y, w, h};
+  c->x = new_x;
+  c->y = new_y;
+  c->w = new_w;
+  c->h = new_h;
+  uint32_t values[4] = {mon->x + new_x, mon->y + new_y, new_w, new_h};
   xcb_configure_window(dpy, c->window,
                        XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y |
                            XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
@@ -560,9 +572,9 @@ void fit_client(client_t *c, monitor_t *mon) {
 #endif // DEBUG
 
   if (c->floating_h + bwy > mon->h)
-    move_resize_client(c, c->actual_x, 0, c->actual_x, mon->h - bwy);
+    move_resize_client(c, c->x, 0, c->x, mon->h - bwy);
   else if (c->floating_h + c->floating_y + bwy > mon->h)
-    move_client(c, c->actual_x, mon->h - c->floating_h - bwy);
+    move_client(c, c->x, mon->h - c->floating_h - bwy);
 #ifdef DEBUG
 #ifdef VERBOSE
   else
@@ -576,15 +588,15 @@ void fit_client(client_t *c, monitor_t *mon) {
 // saves the actual coordinates into the mode-specific ones
 void save_client(client_t *c, enum layout_type t) {
   if (t == LAYOUT_FLOATING) {
-    c->floating_x = c->actual_x;
-    c->floating_y = c->actual_y;
-    c->floating_w = c->actual_w;
-    c->floating_h = c->actual_h;
+    c->floating_x = c->x;
+    c->floating_y = c->y;
+    c->floating_w = c->w;
+    c->floating_h = c->h;
   } else {
-    c->x = c->actual_x;
-    c->y = c->actual_y;
-    c->w = c->actual_w;
-    c->h = c->actual_h;
+    c->x = c->x;
+    c->y = c->y;
+    c->w = c->w;
+    c->h = c->h;
   }
 }
 
@@ -608,7 +620,7 @@ void toggle_window(xcb_window_t win, enum visibility v) {
 }
 
 void hide_client(client_t *c) {
-  if (c == NULL || !c->mapped)
+  if (c == NULL)
     return;
 
 #ifdef DEBUG
@@ -620,7 +632,7 @@ void hide_client(client_t *c) {
 }
 
 void show_client(client_t *c) {
-  if (c == NULL || !c->mapped)
+  if (c == NULL)
     return;
 
 #ifdef DEBUG
@@ -673,6 +685,13 @@ void send_client(client_t *c, int i) {
 #if FOLLOW_SEND
   focus_desktop(desk);
 #endif
+}
+
+void free_client(client_t *c) {
+  // clear up decoration stuff
+  xcb_unmap_window(dpy, c->decour);
+  xcb_free_pixmap(dpy, c->decour_pixmap);
+  xcb_free_gc(dpy, c->decour_gc);
 }
 // }}}
 
@@ -1075,7 +1094,7 @@ void setup_randr() {
 
 // {{{ events
 static void (*events[XCB_NO_OPERATION])(xcb_generic_event_t *e) = {
-  [XCB_CREATE_NOTIFY] = handle_create_notify,
+  /* [XCB_CREATE_NOTIFY] = handle_create_notify, */
   [XCB_MAP_REQUEST] = handle_map_request,
   [XCB_DESTROY_NOTIFY] = handle_destroy_notify,
 
@@ -1091,19 +1110,10 @@ static void (*events[XCB_NO_OPERATION])(xcb_generic_event_t *e) = {
   [XCB_KEY_PRESS] = handle_key_press,
 };
 
-static void handle_create_notify(xcb_generic_event_t *ev) {
-  xcb_create_notify_event_t *e = (xcb_create_notify_event_t *)ev;
-  if (is_decour(e->window))
-    return;
-  client_t *c = new_client(e->window);
-  list_append(&focdesk->clients, c);
-}
-
 static void handle_map_request(xcb_generic_event_t *ev) {
   xcb_map_request_event_t *e = (xcb_map_request_event_t *)ev;
-  client_t *c = get_client(e->window);
-  if (c == NULL) // a window not handled by the window manager
-    return;
+  client_t *c = new_client(e->window);
+  list_append(&focdesk->clients, c);
 
 #if !FOCUS_TYPE
   // start grabbing for clicks on the window
@@ -1116,7 +1126,6 @@ static void handle_map_request(xcb_generic_event_t *ev) {
   xcb_change_window_attributes_checked(dpy, c->window, XCB_CW_EVENT_MASK,
                                        values);
 
-  c->mapped = true;
   show_client(c);
   focus_client(c);
   focdesk->layout.reposition(focdesk);
@@ -1129,7 +1138,6 @@ static void handle_destroy_notify(xcb_generic_event_t *ev) {
     return;
 
   // discard any window information
-  c->mapped = false;
   xcb_ungrab_button(dpy, XCB_BUTTON_INDEX_1, c->window, XCB_NONE);
   xcb_kill_client(dpy, c->window);
 
@@ -1283,9 +1291,6 @@ static void floating_reposition(desktop_t *desk) {
   monitor_t *mon = get_monitor_for_desktop(desk);
   for (list_t *iter = desk->clients; iter != NULL; iter = iter->next) {
     client_t *c = iter->value;
-    if (!c->mapped)
-      continue;
-
     // restore its previous position
     move_resize_client(c, c->floating_x, c->floating_y, c->floating_w,
                        c->floating_h);
@@ -1302,9 +1307,7 @@ static void floating_motion(rel_pointer_t p, client_t *c, monitor_t *mon) {
   uint16_t bwx = BORDER_WIDTH_LEFT + BORDER_WIDTH_RIGHT;
   uint16_t bwy = BORDER_WIDTH_TOP + BORDER_WIDTH_BOTTOM;
   if (c->motion == MOTION_DRAGGING) {
-    int16_t x = MIN(mon->w - c->floating_w - bwx, MAX(c->floating_x + p.x, 0));
-    int16_t y = MIN(mon->h - c->floating_h - bwy, MAX(c->floating_y + p.y, 0));
-    move_client(c, x, y);
+    move_client(c, c->floating_x + p.x, c->floating_y + p.y);
   } else if (c->motion == MOTION_RESIZING) {
     int16_t w =
         MIN(mon->w - c->floating_x - bwx, MAX(c->floating_w + p.x, MIN_WIDTH));
@@ -1341,24 +1344,7 @@ static void floating_move(enum direction d, client_t *c, desktop_t *desk) {
 // there are none (which means the current one should fill all the remaining
 // space)
 static bool should_fill(list_t *iter) {
-  for (; iter != NULL; iter = iter->next) {
-    client_t *c = iter->value;
-    if (c->mapped)
-      return false;
-  }
-
-  return true;
-}
-
-// returns the first client in the list whwich is mapped
-static client_t *first_mapped(list_t *iter) {
-  for (; iter != NULL; iter = iter->next) {
-    client_t *c = iter->value;
-    if (c->mapped)
-      return c;
-  }
-
-  return NULL;
+  return iter->next == NULL || iter->next->value == NULL;
 }
 
 // repositions the windows in the tiling style.
@@ -1373,13 +1359,13 @@ static void tiling_reposition(desktop_t *desk) {
   int16_t x = SCREEN_GAPS, y = SCREEN_GAPS;
   uint16_t w = mon->w - SCREEN_GAPS, h = mon->h - SCREEN_GAPS,
            bw = BORDER_TILING * 2;
-  client_t *first = first_mapped(desk->clients);
+  client_t *first = desk->clients->value;
 
   for (list_t *iter = desk->clients; iter != NULL; iter = iter->next) {
     bool fill = should_fill(iter->next);
     int width, height;
     client_t *c = iter->value;
-    if (c == NULL || !c->mapped)
+    if (c == NULL)
       continue;
 
     if (c == first) {
@@ -1431,62 +1417,44 @@ static void tiling_move(enum direction d, client_t *c, desktop_t *desk) {
 // }}}
 
 // {{{ methods on decorations
-bool is_decour(xcb_window_t w) {
-  for (list_t *miter = monitors; miter != NULL; miter = miter->next) {
-    monitor_t *mon = miter->value;
-    for (list_t *diter = mon->desktops; diter != NULL; diter = diter->next) {
-      desktop_t *desk = diter->value;
-      for (list_t *citer = desk->clients; citer != NULL; citer = citer->next) {
-        client_t *c = citer->value;
-        if (c->decour == w)
-          return true;
-      }
-    }
-  }
-  return false;
-}
-
-void create_decour(client_t *c) {
+void new_decour(client_t *c) {
   uint32_t values[2], mask;
 
   // make the pixmap for the window
   c->decour_pixmap = xcb_generate_id(dpy);
   xcb_create_pixmap(dpy, scr->root_depth, c->decour_pixmap, scr->root,
-                    c->w + BORDER_WIDTH_LEFT + BORDER_WIDTH_RIGHT,
-                    c->h + BORDER_WIDTH_TOP + BORDER_WIDTH_BOTTOM);
-
-  // create a context for filling with the given color
-  c->decour_gc = xcb_generate_id(dpy);
-  mask = XCB_GC_FOREGROUND | XCB_GC_BACKGROUND;
-  values[0] = values[1] = c->decour_color;
-  xcb_create_gc(dpy, c->decour_gc, 0, mask, values);
+                    c->decour_w, c->decour_h);
 
   // create the window
   c->decour = xcb_generate_id(dpy);
   mask = XCB_CW_BACK_PIXMAP /* | XCB_CW_EVENT_MASK*/;
   values[0] = c->decour_pixmap;
   // TODO: we could listen for grabs so we can move windows by titlebars
-  uint16_t width = c->w + BORDER_WIDTH_LEFT + BORDER_WIDTH_RIGHT,
-           height = c->h + BORDER_WIDTH_TOP + BORDER_WIDTH_BOTTOM;
-  msg("width %d, height %d", width, height);
-  xcb_create_window(dpy, scr->root_depth, c->decour, scr->root,
-                    c->x - BORDER_WIDTH_LEFT, c->y - BORDER_WIDTH_TOP, width,
-                    height, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, scr->root_visual,
-                    mask, values);
-  xcb_map_window(dpy, c->decour);
+  xcb_create_window(dpy, scr->root_depth, c->decour, scr->root, c->decour_x,
+                    c->decour_y, c->decour_w, c->decour_h, 0,
+                    XCB_WINDOW_CLASS_INPUT_OUTPUT, scr->root_visual, mask,
+                    values);
 
-  xcb_poly_fill_rectangle(dpy, c->decour_pixmap, c->decour_gc, 1,
-                          (xcb_rectangle_t[]){{0, 0, width, height}});
-  /* xcb_free_pixmap(dpy, c->decour_pixmap); */
-  /* xcb_free_gc(dpy, c->decour_gc); */
+  // create a context for filling with the given color
+  c->decour_gc = xcb_generate_id(dpy);
+  mask = XCB_GC_FOREGROUND | XCB_GC_BACKGROUND;
+  values[0] = values[1] = c->decour_color;
+  xcb_create_gc(dpy, c->decour_gc, scr->root, mask, values);
+
+  xcb_poly_fill_rectangle(
+      dpy, c->decour_pixmap, c->decour_gc, 1,
+      (xcb_rectangle_t[]){
+          {.x = 0, .y = 0, .width = c->decour_w, .height = c->decour_h}});
+  xcb_map_window(dpy, c->decour);
 }
 
 // updates the client's decorations
 void decorate_client(client_t *c) {
-  if (c == NULL)
+  if (c == NULL || c->prev_decour_color == c->decour_color)
     return;
 
   msg("bordering client");
+  c->prev_decour_color = c->decour_color;
 }
 // }}}
 
@@ -1535,7 +1503,7 @@ void clean() {
     monitor_t *mon = miter->value;
     for (list_t *diter = mon->desktops; diter != NULL; diter = diter->next) {
       desktop_t *desk = diter->value;
-      list_free(desk->clients, NULL);
+      list_free(desk->clients, (void (*)(void *))free_client);
     }
     list_free(mon->desktops, (void (*)(void *))free_desktop);
   }

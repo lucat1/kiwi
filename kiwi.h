@@ -50,23 +50,16 @@ struct layout {
 struct client {
   xcb_window_t window;
   float split_ratio;
-  bool mapped;
   enum motion_type motion;
   enum visibility visibility;
 
   xcb_window_t decour;
   xcb_gcontext_t decour_gc;
   xcb_pixmap_t decour_pixmap;
-  uint32_t decour_color;
+  uint32_t decour_color, prev_decour_color;
 
-  int16_t actual_x, actual_y;
-  uint16_t actual_w, actual_h;
-
-  int16_t x, y;
-  uint16_t w, h;
-
-  int16_t floating_x, floating_y;
-  uint16_t floating_w, floating_h;
+  int16_t x, y, floating_x, floating_y, tiling_x, tiling_y, decour_x, decour_y;
+  uint16_t w, h, floating_w, floating_h, tiling_w, tiling_h, decour_w, decour_h;
 };
 
 struct desktop {
@@ -158,8 +151,7 @@ void save_client(client_t *c, enum layout_type t);
 void toggle_window(xcb_window_t win, enum visibility v);
 void hide_client(client_t *c);
 void show_client(client_t *c);
-bool is_decour(xcb_window_t w);
-void create_decour(client_t *c);
+void new_decour(client_t *c);
 void decorate_client(client_t *c);
 void fit_client(client_t *c, monitor_t *mon);
 void focus_desktop(desktop_t *desk);

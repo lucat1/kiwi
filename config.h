@@ -33,7 +33,7 @@
 #define SPLIT_RATIO .6f
 
 // the border around each window. can be set to 0 to remove
-#define BORDER_WIDTH_TOP 25
+#define BORDER_WIDTH_TOP 30
 #define BORDER_WIDTH_LEFT 1
 #define BORDER_WIDTH_RIGHT 1
 #define BORDER_WIDTH_BOTTOM 1
