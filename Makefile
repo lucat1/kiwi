@@ -3,6 +3,7 @@ CFLAGS += -std=c99 -Wall -Wextra -pedantic -Wold-style-declaration -Wno-missing-
 
 LDFLAGS += -lxcb -lxcb-keysyms -lxcb-randr
 PREFIX ?= /usr
+BINDIR ?= $(PREFIX)/bin
 PROG = kiwi
 
 .PHONY: dev debug profile clean install uninstall

@@ -462,14 +462,14 @@ void focus_client(client_t *c) {
     return;
 
   // remove focus from the previous client
-  if (focdesk->focused != NULL) {
-    focdesk->focused->decour_color = UNFOCUSED;
+  if (focdesk->focused != NULL && focdesk->focused != c) {
+    focdesk->focused->decour_color = BORDER_COLOR_UNFOCUSED;
     decorate_client(c);
   }
 
   // focus the new client
   focdesk->focused = c;
-  c->decour_color = FOCUSED;
+  c->decour_color = BORDER_COLOR_FOCUSED;
   decorate_client(c);
 
   // push the client to the focus list if we have an empty one or
@@ -600,21 +600,22 @@ void save_client(client_t *c, enum layout_type t) {
   }
 }
 
-// borrowed from bspwm
-void toggle_window(xcb_window_t win, enum visibility v) {
-#ifdef DEBUG
-  msg("\ttoggling window %d", win);
-#endif // DEBUG
+void toggle_windows(const int len, xcb_window_t *win, enum visibility v) {
   uint32_t values_off[] = {ROOT_EVENT_MASK &
                            ~XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY};
   uint32_t values_on[] = {ROOT_EVENT_MASK};
   xcb_change_window_attributes(dpy, scr->root, XCB_CW_EVENT_MASK, values_off);
-  if (v == SHOWN) {
-    /* set_window_state(win, XCB_ICCCM_WM_STATE_NORMAL); */
-    xcb_map_window(dpy, win);
-  } else {
-    xcb_unmap_window(dpy, win);
-    /* set_window_state(win, XCB_ICCCM_WM_STATE_ICONIC); */
+  for (int i = 0; i < len; i++) {
+#ifdef DEBUG
+    msg("\ttoggling windows %d", win[i]);
+#endif // DEBUG
+    if (v == SHOWN) {
+      /* set_window_state(win, XCB_ICCCM_WM_STATE_NORMAL); */
+      xcb_map_window(dpy, win[i]);
+    } else {
+      xcb_unmap_window(dpy, win[i]);
+      /* set_window_state(win, XCB_ICCCM_WM_STATE_ICONIC); */
+    }
   }
   xcb_change_window_attributes(dpy, scr->root, XCB_CW_EVENT_MASK, values_on);
 }
@@ -625,10 +626,11 @@ void hide_client(client_t *c) {
 
 #ifdef DEBUG
   msg("%p\tclient (%d) -- hidden", c, c->window);
-#endif
+#endif // DEBUG
 
   c->visibility = HIDDEN;
-  toggle_window(c->window, c->visibility);
+  xcb_window_t wins[] = {c->window, c->decour};
+  toggle_windows(2, wins, c->visibility);
 }
 
 void show_client(client_t *c) {
@@ -637,10 +639,11 @@ void show_client(client_t *c) {
 
 #ifdef DEBUG
   msg("%p\tclient (%d) -- shown", c, c->window);
-#endif
+#endif // DEBUG
 
   c->visibility = SHOWN;
-  toggle_window(c->window, c->visibility);
+  xcb_window_t wins[] = {c->window, c->decour};
+  toggle_windows(2, wins, c->visibility);
 }
 
 void send_client(client_t *c, int i) {
@@ -689,9 +692,7 @@ void send_client(client_t *c, int i) {
 
 void free_client(client_t *c) {
   // clear up decoration stuff
-  xcb_unmap_window(dpy, c->decour);
-  xcb_free_pixmap(dpy, c->decour_pixmap);
-  xcb_free_gc(dpy, c->decour_gc);
+  free_decour(c);
 }
 // }}}
 
@@ -847,9 +848,9 @@ void focus_monitor(monitor_t *mon) {
 
     client_t *c = m->focused->focused;
     if (m == mon)
-      c->decour_color = UNFOCUSED;
+      c->decour_color = BORDER_COLOR_UNFOCUSED;
     else
-      c->decour_color = FOCUSED_ANOTHER_MONITOR;
+      c->decour_color = BORDER_COLOR_FOCUSED_ANOTHER;
     decorate_client(c);
   }
 
@@ -1140,6 +1141,7 @@ static void handle_destroy_notify(xcb_generic_event_t *ev) {
   // discard any window information
   xcb_ungrab_button(dpy, XCB_BUTTON_INDEX_1, c->window, XCB_NONE);
   xcb_kill_client(dpy, c->window);
+  xcb_destroy_window(dpy, c->decour);
 
   // the focdesk may be null as the monitor the window was on was unplugged
   if (focdesk != NULL) {
@@ -1418,6 +1420,7 @@ static void tiling_move(enum direction d, client_t *c, desktop_t *desk) {
 
 // {{{ methods on decorations
 void new_decour(client_t *c) {
+  free_decour(c);
   uint32_t values[2], mask;
 
   // make the pixmap for the window
@@ -1427,7 +1430,7 @@ void new_decour(client_t *c) {
 
   // create the window
   c->decour = xcb_generate_id(dpy);
-  mask = XCB_CW_BACK_PIXMAP /* | XCB_CW_EVENT_MASK*/;
+  mask = XCB_CW_BACK_PIXMAP;
   values[0] = c->decour_pixmap;
   // TODO: we could listen for grabs so we can move windows by titlebars
   xcb_create_window(dpy, scr->root_depth, c->decour, scr->root, c->decour_x,
@@ -1437,15 +1440,37 @@ void new_decour(client_t *c) {
 
   // create a context for filling with the given color
   c->decour_gc = xcb_generate_id(dpy);
-  mask = XCB_GC_FOREGROUND | XCB_GC_BACKGROUND;
-  values[0] = values[1] = c->decour_color;
+  mask = XCB_GC_FOREGROUND;
+  values[0] = c->decour_color;
   xcb_create_gc(dpy, c->decour_gc, scr->root, mask, values);
 
   xcb_poly_fill_rectangle(
-      dpy, c->decour_pixmap, c->decour_gc, 1,
+      dpy, c->decour_pixmap, c->decour_gc, 4,
       (xcb_rectangle_t[]){
-          {.x = 0, .y = 0, .width = c->decour_w, .height = c->decour_h}});
+          {.x = 0, .y = 0, .width = c->decour_w, .height = BORDER_WIDTH_TOP},
+          {.x = 0,
+           .y = BORDER_WIDTH_TOP,
+           .width = BORDER_WIDTH_LEFT,
+           .height = c->h},
+          {.x = c->decour_w - BORDER_WIDTH_RIGHT,
+           .y = BORDER_WIDTH_TOP,
+           .width = BORDER_WIDTH_RIGHT,
+           .height = c->h},
+          {.x = 0,
+           .y = c->h + BORDER_WIDTH_TOP,
+           .width = c->decour_w,
+           .height = BORDER_WIDTH_BOTTOM},
+      });
   xcb_map_window(dpy, c->decour);
+}
+
+void free_decour(client_t *c) {
+  if (c == NULL)
+    return;
+
+  xcb_unmap_window(dpy, c->decour);
+  xcb_free_pixmap(dpy, c->decour_pixmap);
+  xcb_free_gc(dpy, c->decour_gc);
 }
 
 // updates the client's decorations
@@ -1453,7 +1478,9 @@ void decorate_client(client_t *c) {
   if (c == NULL || c->prev_decour_color == c->decour_color)
     return;
 
-  msg("bordering client");
+  msg("changing border color from 0x%x to 0x%x", c->prev_decour_color,
+      c->decour_color);
+  new_decour(c);
   c->prev_decour_color = c->decour_color;
 }
 // }}}
