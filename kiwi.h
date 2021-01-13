@@ -145,10 +145,8 @@ void move(FN_ARG arg);
 void focus_client(client_t *c);
 void move_client(client_t *c, int16_t x, int16_t y);
 void resize_client(client_t *c, uint16_t width, uint16_t height);
-void move_resize_client(client_t *c, int16_t x, int16_t y, uint16_t width,
-                        uint16_t height);
 void save_client(client_t *c, enum layout_type t);
-void toggle_windows(int lne, xcb_window_t *win, enum visibility v);
+void toggle_windows(const int lne, xcb_window_t *win, enum visibility v);
 void hide_client(client_t *c);
 void show_client(client_t *c);
 void new_decour(client_t *c);

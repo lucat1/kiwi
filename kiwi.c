@@ -418,8 +418,9 @@ client_t *new_client(xcb_window_t w) {
   client_t *c = malloc(sizeof(client_t));
   c->window = w;
   c->split_ratio = SPLIT_RATIO;
-  c->visibility = HIDDEN;
+  c->visibility = SHOWN;
   c->motion = MOTION_NONE;
+  xcb_map_window(dpy, w);
 
   xcb_get_geometry_reply_t *geom = xcb_geometry(dpy, w);
   c->x = c->floating_x = c->tiling_x =
@@ -522,32 +523,27 @@ void resize_client(client_t *c, uint16_t new_w, uint16_t new_h) {
   if (c == NULL)
     return;
 
+  monitor_t *mon;
+  if ((mon = get_monitor_for_client(c)) == NULL)
+    fail("could not get monitor for client");
+
+  new_w = MIN(mon->w - c->x - BORDER_WIDTH_LEFT - BORDER_WIDTH_RIGHT,
+              MAX(new_w, MIN_WIDTH));
+  new_h = MIN(mon->h - c->y - BORDER_WIDTH_TOP - BORDER_WIDTH_BOTTOM,
+              MAX(new_h, MIN_HEIGHT));
+  msg("resizing to %d %d", new_w, new_h);
+
+  // resize the window drawable
   c->w = new_w;
   c->h = new_h;
   uint32_t values[2] = {new_w, new_h};
   xcb_configure_window(dpy, c->window,
                        XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
                        values);
-}
-
-void move_resize_client(client_t *c, int16_t new_x, int16_t new_y,
-                        uint16_t new_w, uint16_t new_h) {
-  if (c == NULL)
-    return;
-
-  monitor_t *mon;
-  if ((mon = get_monitor_for_client(c)) == NULL)
-    fail("could not get monitor for client");
-
-  c->x = new_x;
-  c->y = new_y;
-  c->w = new_w;
-  c->h = new_h;
-  uint32_t values[4] = {mon->x + new_x, mon->y + new_y, new_w, new_h};
-  xcb_configure_window(dpy, c->window,
-                       XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y |
-                           XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
-                       values);
+  // update decorations(recreate as we're forced to)
+  c->decour_w = new_w + BORDER_WIDTH_LEFT + BORDER_WIDTH_RIGHT;
+  c->decour_h = new_h + BORDER_WIDTH_TOP + BORDER_WIDTH_BOTTOM;
+  new_decour(c);
 }
 
 // fits a client to its new monitor (only needed for floating mode)
@@ -560,9 +556,10 @@ void fit_client(client_t *c, monitor_t *mon) {
 
   uint16_t bwx = BORDER_WIDTH_LEFT + BORDER_WIDTH_RIGHT;
   uint16_t bwy = BORDER_WIDTH_TOP + BORDER_WIDTH_BOTTOM;
-  if (c->floating_w + bwx > mon->w)
-    move_resize_client(c, 0, c->floating_y, mon->w - bwx, c->floating_h);
-  else if (c->floating_w + c->floating_x + bwx > mon->w)
+  if (c->floating_w + bwx > mon->w) {
+    move_client(c, 0, c->floating_y);
+    resize_client(c, mon->w - bwx, c->floating_h);
+  } else if (c->floating_w + c->floating_x + bwx > mon->w)
     move_client(c, mon->w - c->floating_w - bwx, c->floating_y);
 #ifdef DEBUG
 #ifdef VERBOSE
@@ -571,9 +568,10 @@ void fit_client(client_t *c, monitor_t *mon) {
 #endif // VERBOSE
 #endif // DEBUG
 
-  if (c->floating_h + bwy > mon->h)
-    move_resize_client(c, c->x, 0, c->x, mon->h - bwy);
-  else if (c->floating_h + c->floating_y + bwy > mon->h)
+  if (c->floating_h + bwy > mon->h) {
+    move_client(c, c->x, 0);
+    resize_client(c, c->x, mon->h - bwy);
+  } else if (c->floating_h + c->floating_y + bwy > mon->h)
     move_client(c, c->x, mon->h - c->floating_h - bwy);
 #ifdef DEBUG
 #ifdef VERBOSE
@@ -607,10 +605,11 @@ void toggle_windows(const int len, xcb_window_t *win, enum visibility v) {
   xcb_change_window_attributes(dpy, scr->root, XCB_CW_EVENT_MASK, values_off);
   for (int i = 0; i < len; i++) {
 #ifdef DEBUG
-    msg("\ttoggling windows %d", win[i]);
+    msg("\ttoggling window %d", win[i]);
 #endif // DEBUG
     if (v == SHOWN) {
       /* set_window_state(win, XCB_ICCCM_WM_STATE_NORMAL); */
+      msg("mapping %d", win[i]);
       xcb_map_window(dpy, win[i]);
     } else {
       xcb_unmap_window(dpy, win[i]);
@@ -750,9 +749,8 @@ void focus_desktop(desktop_t *desk) {
   focus_monitor(mon);
   focmon->focused = desk;
   focdesk->layout.reposition(focdesk);
-  for (list_t *citer = focdesk->clients; citer != NULL; citer = citer->next) {
-    show_client(citer->value);
-  }
+  for (list_t *iter = desk->clients; iter != NULL; iter = iter->next)
+    show_client(iter->value);
   focus_client(focdesk->focused);
   wm_info();
 }
@@ -1127,7 +1125,6 @@ static void handle_map_request(xcb_generic_event_t *ev) {
   xcb_change_window_attributes_checked(dpy, c->window, XCB_CW_EVENT_MASK,
                                        values);
 
-  show_client(c);
   focus_client(c);
   focdesk->layout.reposition(focdesk);
 }
@@ -1294,28 +1291,19 @@ static void floating_reposition(desktop_t *desk) {
   for (list_t *iter = desk->clients; iter != NULL; iter = iter->next) {
     client_t *c = iter->value;
     // restore its previous position
-    move_resize_client(c, c->floating_x, c->floating_y, c->floating_w,
-                       c->floating_h);
+    resize_client(c, c->floating_w, c->floating_h);
+    move_client(c, c->floating_x, c->floating_y);
     // fit the client to its new monitor, if needed
     fit_client(c, mon);
-
-    if (c->visibility == HIDDEN)
-      show_client(c);
   }
 }
 
 static void floating_motion(rel_pointer_t p, client_t *c, monitor_t *mon) {
   UNUSED(mon);
-  uint16_t bwx = BORDER_WIDTH_LEFT + BORDER_WIDTH_RIGHT;
-  uint16_t bwy = BORDER_WIDTH_TOP + BORDER_WIDTH_BOTTOM;
   if (c->motion == MOTION_DRAGGING) {
     move_client(c, c->floating_x + p.x, c->floating_y + p.y);
   } else if (c->motion == MOTION_RESIZING) {
-    int16_t w =
-        MIN(mon->w - c->floating_x - bwx, MAX(c->floating_w + p.x, MIN_WIDTH));
-    int16_t h =
-        MIN(mon->h - c->floating_y - bwy, MAX(c->floating_h + p.y, MIN_HEIGHT));
-    resize_client(c, w, h);
+    resize_client(c, c->floating_w + p.x, c->floating_h + p.y);
   }
 }
 
@@ -1364,7 +1352,7 @@ static void tiling_reposition(desktop_t *desk) {
   client_t *first = desk->clients->value;
 
   for (list_t *iter = desk->clients; iter != NULL; iter = iter->next) {
-    bool fill = should_fill(iter->next);
+    bool fill = should_fill(iter);
     int width, height;
     client_t *c = iter->value;
     if (c == NULL)
@@ -1380,7 +1368,8 @@ static void tiling_reposition(desktop_t *desk) {
       height = (fill ? h : h * c->split_ratio) - bw;
     }
 
-    move_resize_client(c, x, y, width, height);
+    move_client(c, x, y);
+    resize_client(c, width, height);
     save_client(c, LAYOUT_TILING);
 
     if (c == first) {
@@ -1420,6 +1409,7 @@ static void tiling_move(enum direction d, client_t *c, desktop_t *desk) {
 
 // {{{ methods on decorations
 void new_decour(client_t *c) {
+  msg("called new_decour");
   free_decour(c);
   uint32_t values[2], mask;
 
@@ -1461,14 +1451,19 @@ void new_decour(client_t *c) {
            .width = c->decour_w,
            .height = BORDER_WIDTH_BOTTOM},
       });
-  xcb_map_window(dpy, c->decour);
+
+  if (c->visibility == SHOWN) {
+    xcb_map_window(dpy, c->decour);
+    static const uint32_t v[] = {XCB_STACK_MODE_ABOVE};
+    xcb_configure_window(dpy, c->window, XCB_CONFIG_WINDOW_STACK_MODE, v);
+  }
 }
 
 void free_decour(client_t *c) {
   if (c == NULL)
     return;
 
-  xcb_unmap_window(dpy, c->decour);
+  xcb_destroy_window(dpy, c->decour);
   xcb_free_pixmap(dpy, c->decour_pixmap);
   xcb_free_gc(dpy, c->decour_gc);
 }

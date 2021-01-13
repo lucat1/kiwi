@@ -12,7 +12,7 @@ dev: CFLAGS += -DDEBUG
 dev: kiwi
 
 debug: CFLAGS += -DDEBUG -DVERBOSE -ggdb
-debug: clean kiwi
+debug: kiwi
 
 profile: CFLAGS += -DDEBUG -pg
 profile: clean kiwi
